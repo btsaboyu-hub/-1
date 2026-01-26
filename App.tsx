@@ -5,10 +5,9 @@ import PanoramaViewer from './components/PanoramaViewer';
 import ARExhibit from './components/ARExhibit';
 import BookingCalendar from './components/BookingCalendar';
 import HallsGrid from './components/HallsGrid';
-import EventsWaterfall from './components/EventsWaterfall';
 import GlassCard from './components/GlassCard';
 import { NOTIFICATIONS, SEARCH_SUGGESTIONS } from './constants';
-import { Home, Compass, Camera, Calendar, User, Bell, Search, Menu, ChevronRight, Info, X, Clock, MessageSquare, ShieldAlert } from 'lucide-react';
+import { Home, Compass, Camera, Calendar, User, Bell, Search, Menu, ChevronRight, Info, X, Clock, MessageSquare, ShieldAlert, BookOpen, MapPin } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(AppRoute.HOME);
@@ -87,12 +86,15 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* 搜索弹出层 */}
+      {/* 搜索弹出层 (优化内容) */}
       {showFeatureModal === 'search' && (
         <div className="fixed inset-0 z-[60] flex flex-col bg-paperWhite/95 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-300">
-           <div className="px-6 pt-16 pb-6">
+           <div className="px-6 pt-16 pb-6 overflow-y-auto no-scrollbar">
              <div className="flex items-center justify-between mb-8">
-                <h3 className="text-2xl font-serif text-jadeBlue font-bold">馆内检索</h3>
+                <div>
+                  <h3 className="text-2xl font-serif text-jadeBlue font-bold">馆内检索</h3>
+                  <p className="text-[10px] text-jadeBlue/40 font-bold uppercase tracking-widest">Search Exhibition, Artifacts, Events</p>
+                </div>
                 <button onClick={() => setShowFeatureModal(null)} className="p-2 rounded-full bg-jadeBlue/5"><X size={20}/></button>
              </div>
              <div className="relative mb-8">
@@ -101,19 +103,21 @@ const App: React.FC = () => {
                   autoFocus
                   type="text" 
                   placeholder="搜索展厅、展品或校史活动..." 
-                  className="w-full bg-jadeBlue/5 border border-jadeBlue/10 rounded-2xl py-4 pl-12 pr-4 font-serif text-lg focus:outline-none focus:ring-2 focus:ring-jadeBlue/20 transition-all"
+                  className="w-full bg-jadeBlue/5 border border-jadeBlue/10 rounded-2xl py-4 pl-12 pr-4 font-serif text-lg focus:outline-none focus:ring-2 focus:ring-jadeBlue/20 transition-all shadow-inner"
                 />
              </div>
-             <div className="space-y-8">
+             <div className="space-y-8 pb-12">
                 {SEARCH_SUGGESTIONS.map((section) => (
                   <div key={section.category}>
-                    <h4 className="text-xs font-bold text-jadeBlue/40 uppercase tracking-widest mb-4 flex items-center gap-2">
-                       <span className="w-4 h-px bg-jadeBlue/20" />
+                    <h4 className="text-xs font-bold text-jadeBlue/60 uppercase tracking-widest mb-4 flex items-center gap-2">
+                       {section.category === '展厅' && <MapPin size={14} />}
+                       {section.category === '展品' && <BookOpen size={14} />}
+                       {section.category === '活动' && <Calendar size={14} />}
                        {section.category}
                     </h4>
                     <div className="flex flex-wrap gap-2">
                        {section.items.map((item) => (
-                         <button key={item} className="px-4 py-2 bg-white border border-jadeBlue/5 rounded-full text-sm font-serif text-jadeBlue hover:border-jadeBlue/40 transition-all">
+                         <button key={item} className="px-4 py-2 bg-white border border-jadeBlue/10 rounded-xl text-sm font-serif text-jadeBlue hover:bg-jadeBlue hover:text-white hover:border-jadeBlue transition-all shadow-sm">
                            {item}
                          </button>
                        ))}
@@ -125,17 +129,20 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* 通知弹出层 */}
+      {/* 通知弹出层 (优化内容) */}
       {showFeatureModal === 'notifications' && (
         <div className="fixed inset-0 z-[60] flex flex-col bg-paperWhite/95 backdrop-blur-xl animate-in fade-in slide-in-from-bottom-4 duration-300">
            <div className="px-6 pt-16 pb-6 flex-1 overflow-y-auto no-scrollbar">
              <div className="flex items-center justify-between mb-8">
-                <h3 className="text-2xl font-serif text-jadeBlue font-bold">提示信息</h3>
+                <div>
+                  <h3 className="text-2xl font-serif text-jadeBlue font-bold">馆内通知</h3>
+                  <p className="text-[10px] text-jadeBlue/40 font-bold uppercase tracking-widest">Booking & Official Updates</p>
+                </div>
                 <button onClick={() => setShowFeatureModal(null)} className="p-2 rounded-full bg-jadeBlue/5"><X size={20}/></button>
              </div>
              <div className="space-y-4">
                 {NOTIFICATIONS.map((note) => (
-                  <GlassCard key={note.id} className="p-4 border-none shadow-sm flex gap-4 items-start active:scale-[0.98] transition-all">
+                  <GlassCard key={note.id} className="p-4 border-none shadow-sm flex gap-4 items-start active:scale-[0.98] transition-all bg-white/60">
                     <div className={`p-3 rounded-2xl flex-shrink-0 ${
                       note.type === '预约' ? 'bg-jadeBlue/10 text-jadeBlue' :
                       note.type === '活动' ? 'bg-harvestGreen/10 text-harvestGreen' : 'bg-sxuRed/10 text-sxuRed'
@@ -160,8 +167,10 @@ const App: React.FC = () => {
                 ))}
              </div>
            </div>
-           <div className="p-6 border-t border-jadeBlue/5">
-              <button className="w-full py-4 bg-jadeBlue text-white rounded-2xl font-serif font-bold shadow-lg shadow-jadeBlue/20">全部标记为已读</button>
+           <div className="p-6 bg-white/80 border-t border-jadeBlue/5">
+              <button className="w-full py-4 bg-jadeBlue text-white rounded-2xl font-serif font-bold shadow-lg shadow-jadeBlue/20 active:scale-95 transition-all">
+                全部标记为已读
+              </button>
            </div>
         </div>
       )}
@@ -188,9 +197,9 @@ const App: React.FC = () => {
             <div className="grid grid-cols-4 gap-4 transition-page" style={{ animationDelay: '0.2s' }}>
               {[
                 { icon: <Compass size={22}/>, label: '展厅巡游', route: AppRoute.PANORAMA },
-                { icon: <Camera size={22}/>, label: '镇馆之宝', route: AppRoute.AR },
+                { icon: <Camera size={22}/>, label: '灵境寻古', route: AppRoute.AR },
                 { icon: <Calendar size={22}/>, label: '团队预约', route: AppRoute.BOOKING },
-                { icon: <Info size={22}/>, label: '校史展览', route: AppRoute.HOME }
+                { icon: <User size={22}/>, label: '我的主页', route: AppRoute.PROFILE }
               ].map((item, idx) => (
                 <button key={idx} onClick={() => setCurrentRoute(item.route)} className="flex flex-col items-center gap-2">
                    <div className="w-16 h-16 glass-morphism rounded-3xl flex items-center justify-center text-jadeBlue border border-jadeBlue/10 shadow-sm hover:translate-y-[-2px] hover:shadow-md transition-all">
@@ -221,7 +230,7 @@ const App: React.FC = () => {
           <div className="px-6 py-12 transition-page">
             <div className="text-center mb-10">
               <div className="relative inline-block">
-                <div className="w-24 h-24 rounded-full bg-jadeBlue/5 mx-auto flex items-center justify-center border-2 border-jadeBlue/10 mb-4 overflow-hidden">
+                <div className="w-24 h-24 rounded-full bg-jadeBlue/5 mx-auto flex items-center justify-center border-2 border-jadeBlue/10 mb-4 overflow-hidden shadow-inner">
                    <User size={56} className="text-jadeBlue/40" />
                 </div>
                 <div className="absolute bottom-4 right-0 w-8 h-8 bg-sxuRed text-white rounded-full flex items-center justify-center border-2 border-white shadow-lg">
@@ -232,14 +241,15 @@ const App: React.FC = () => {
               <p className="text-xs text-inkBlack/40 mt-1 uppercase tracking-widest font-bold">学术访客身份认证</p>
             </div>
             
-            <div className="space-y-4">
+            <div className="space-y-4 pb-12">
                {[
                  { label: '预约历史', icon: <Calendar size={18}/>, value: '3次' },
-                 { label: '我的收藏', icon: <Compass size={18}/>, value: '12件' },
-                 { label: '账号设置', icon: <Menu size={18}/> },
+                 { label: '云游足迹', icon: <Compass size={18}/>, value: '12处' },
+                 { label: '馆藏收藏', icon: <BookOpen size={18}/>, value: '5件' },
+                 { label: '系统通知', icon: <Bell size={18}/> },
                  { label: '关于校史馆', icon: <Info size={18}/> }
                ].map((item, idx) => (
-                 <GlassCard key={idx} className="py-4 px-6 flex justify-between items-center group active:scale-[0.98] transition-all">
+                 <GlassCard key={idx} className="py-4 px-6 flex justify-between items-center group active:scale-[0.98] transition-all bg-white/60">
                     <div className="flex items-center gap-4">
                        <div className="text-jadeBlue/40 group-hover:text-jadeBlue transition-colors">{item.icon}</div>
                        <span className="font-serif text-lg text-jadeBlue">{item.label}</span>
@@ -255,7 +265,7 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* 底部导航 */}
+      {/* 底部导航 - 修改 label 回 "我的" */}
       <footer className="absolute bottom-8 inset-x-6 z-50">
         <GlassCard className="py-4 px-8 rounded-[2rem] flex justify-between items-center shadow-[0_20px_40px_-15px_rgba(18,110,130,0.3)] border-white/60">
            <NavItem route={AppRoute.HOME} icon={<Home size={22}/>} label="首页" />
