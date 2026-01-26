@@ -1,0 +1,7 @@
+{
+  "name": "Heritage360 - New Classical Museum Experience",
+  "description": "A sophisticated immersive application featuring 3D panorama tours, simulated AR artifact exploration, and a seamless booking system, all wrapped in a high-end Neo-Classical Chinese aesthetic.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
