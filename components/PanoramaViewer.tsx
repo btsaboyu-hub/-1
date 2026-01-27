@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { SCENES } from '../scenesConfig';
-import { Volume2, VolumeX, RotateCcw, Maximize2, MousePointer2, Compass, Move, Info, ArrowLeft } from 'lucide-react';
+import { Volume2, VolumeX, Move, Info, ArrowLeft, MapPin } from 'lucide-react';
 
 interface PanoramaViewerProps {
   initialSceneId?: string;
@@ -25,6 +25,7 @@ const PanoramaViewer: React.FC<PanoramaViewerProps> = ({
   const [isChangingScene, setIsChangingScene] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [autoRotate, setAutoRotate] = useState(true);
+  const [isDragging, setIsDragging] = useState(false);
   
   const sceneRef = useRef<THREE.Scene | null>(null);
   const sphereRef = useRef<THREE.Mesh | null>(null);
@@ -53,15 +54,15 @@ const PanoramaViewer: React.FC<PanoramaViewerProps> = ({
     mountRef.current.appendChild(renderer.domElement);
 
     const geometry = new THREE.SphereGeometry(500, 64, 48);
+    // 关键修正：通过负缩放翻转几何体以朝向内部。
     geometry.scale(-1, 1, 1);
     
-    // 设置主题色 0x126e82 作为底色，防止图片加载失败时全黑
+    // 初始化材质：设置底色
     const material = new THREE.MeshBasicMaterial({ 
-      transparent: true, 
-      opacity: 1,
-      side: THREE.BackSide,
-      color: 0x126e82 
+      color: 0x126e82, // 设置主题色为底色
+      map: null
     });
+    
     const sphere = new THREE.Mesh(geometry, material);
     sphereRef.current = sphere;
     scene.add(sphere);
@@ -81,12 +82,14 @@ const PanoramaViewer: React.FC<PanoramaViewerProps> = ({
 
     const onPointerDown = (event: PointerEvent) => {
       isUserInteracting = true;
+      setIsDragging(true);
       setAutoRotate(false);
       onPointerDownPointerX = event.clientX;
       onPointerDownPointerY = event.clientY;
       onPointerDownLon = lon;
       onPointerDownLat = lat;
 
+      // Raycast for hotspots
       const rect = mountRef.current!.getBoundingClientRect();
       mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -115,7 +118,11 @@ const PanoramaViewer: React.FC<PanoramaViewerProps> = ({
       }
     };
 
-    const onPointerUp = () => { isUserInteracting = false; };
+    const onPointerUp = () => { 
+      isUserInteracting = false; 
+      setIsDragging(false);
+    };
+    
     const onWheel = (event: WheelEvent) => {
       camera.fov = THREE.MathUtils.clamp(camera.fov + event.deltaY * 0.05, 30, 90);
       camera.updateProjectionMatrix();
@@ -166,7 +173,6 @@ const PanoramaViewer: React.FC<PanoramaViewerProps> = ({
       window.removeEventListener('resize', handleResize);
       renderer.dispose();
       geometry.dispose();
-      // Safe cleanup
       if (sphereRef.current) {
         if (Array.isArray(sphereRef.current.material)) {
           sphereRef.current.material.forEach(m => m.dispose());
@@ -195,12 +201,14 @@ const PanoramaViewer: React.FC<PanoramaViewerProps> = ({
         const mat = sphereRef.current!.material as THREE.MeshBasicMaterial;
         if (mat.map) mat.map.dispose();
         mat.map = newTexture;
-        // 加载成功后将颜色设为白色，以便显示贴图原色
         mat.color.setHex(0xffffff); 
         mat.needsUpdate = true;
       } catch (err) {
-        console.error("Scene texture load failed. Keeping base color.", err);
-        // 不抛出错误，保持程序运行，仅显示底色
+        console.error("Scene texture load failed.", err);
+        const mat = sphereRef.current!.material as THREE.MeshBasicMaterial;
+        mat.map = null;
+        mat.color.setHex(0x126e82);
+        mat.needsUpdate = true;
       }
       
       // Cleanup hotspots
@@ -233,28 +241,31 @@ const PanoramaViewer: React.FC<PanoramaViewerProps> = ({
   }, [currentSceneKey]);
 
   return (
-    <div className="fixed inset-0 w-screen h-screen bg-black overflow-hidden select-none z-[100]">
+    <div className="fixed inset-0 w-screen h-screen bg-black overflow-hidden select-none z-[100] touch-none">
       <audio ref={audioRef} loop src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" />
       
+      {/* 3D Canvas Container */}
       <div 
         ref={mountRef} 
-        className={`w-full h-full cursor-grab active:cursor-grabbing transition-all duration-1000 ${
+        className={`w-full h-full transition-all duration-1000 ${
+          isDragging ? 'cursor-grabbing' : 'cursor-grab'
+        } ${
           isChangingScene ? 'opacity-0 scale-105 blur-2xl' : 'opacity-100 scale-100 blur-0'
         }`} 
       />
 
-      {/* Exit Button */}
+      {/* Top Left: Exit Button */}
       {onExit && (
         <button 
           onClick={onExit}
-          className="absolute top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-black/40 backdrop-blur-md border border-white/20 rounded-full text-white hover:bg-sxuRed hover:border-sxuRed transition-all group animate-in slide-in-from-top-4"
+          className="absolute top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-black/30 backdrop-blur-md border border-white/20 rounded-full text-white hover:bg-sxuRed hover:border-sxuRed transition-all group animate-in slide-in-from-top-4"
         >
           <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
           <span className="text-xs font-serif font-bold tracking-widest">退出漫游</span>
         </button>
       )}
 
-      {/* Top Left Label (Adjusted position) */}
+      {/* Top Left: Scene Info (Moved down slightly) */}
       <div className="absolute top-24 left-6 z-40 pointer-events-none">
          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl px-6 py-4 shadow-2xl animate-in slide-in-from-left duration-700">
             <div className="flex items-center gap-3">
@@ -263,41 +274,52 @@ const PanoramaViewer: React.FC<PanoramaViewerProps> = ({
             </div>
             <div className="flex items-center gap-2 mt-1.5 opacity-60">
               <Info size={10} className="text-white" />
-              <p className="text-[9px] text-white uppercase tracking-[0.2em] font-sans font-bold">Centennial SXU · 360° Virtual Tour</p>
+              <p className="text-[9px] text-white uppercase tracking-[0.2em] font-sans font-bold">Centennial SXU · 360° VR</p>
             </div>
          </div>
       </div>
 
-      {/* Control Buttons */}
-      <div className="absolute right-6 top-24 flex flex-col gap-4 z-40">
-         {[
-           { icon: isMuted ? <VolumeX size={18}/> : <Volume2 size={18}/>, label: '音乐', action: () => { setIsMuted(!isMuted); if (isMuted) audioRef.current?.play(); else audioRef.current?.pause(); } },
-           { icon: <RotateCcw size={18}/>, label: '重置', action: () => window.location.reload() },
-           { icon: <MousePointer2 size={18} className={autoRotate ? 'opacity-30' : 'text-sxuRed'}/>, label: '自旋', action: () => setAutoRotate(!autoRotate) },
-           { icon: <Maximize2 size={18}/>, label: '全屏', action: () => document.documentElement.requestFullscreen() }
-         ].map((item, idx) => (
-           <button key={idx} onClick={item.action} className="w-11 h-11 bg-black/30 backdrop-blur-md border border-white/10 rounded-full flex flex-col items-center justify-center text-white shadow-xl hover:bg-jadeBlue transition-all group">
-              {item.icon}
-              <span className="text-[7px] font-bold mt-1 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-tighter">{item.label}</span>
-           </button>
-         ))}
+      {/* Top Right: Only Speaker Icon, Centered */}
+      <div className="absolute top-6 right-6 z-50">
+        <button 
+          onClick={() => { setIsMuted(!isMuted); if (isMuted) audioRef.current?.play(); else audioRef.current?.pause(); }} 
+          className="w-12 h-12 bg-black/30 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center text-white shadow-xl hover:bg-jadeBlue hover:border-jadeBlue transition-all group active:scale-90"
+        >
+           {isMuted ? <VolumeX size={20}/> : <Volume2 size={20}/>}
+        </button>
       </div>
 
-      {/* Guide Tooltip */}
+      {/* Bottom Center: Guide Tooltip */}
       <div className="absolute bottom-12 inset-x-0 z-40 flex justify-center pointer-events-none">
-         <div className="bg-black/40 backdrop-blur-lg text-white/90 px-5 py-2.5 rounded-full text-[11px] font-serif border border-white/10 flex items-center gap-2 animate-pulse shadow-2xl">
-            <Move size={14} className="text-sxuRed" />
-            <span>点击地面<span className="text-sxuRed mx-1 font-bold">光圈</span>切换场景，拖拽旋转视角</span>
+         <div className="bg-black/20 backdrop-blur-sm text-white px-6 py-3 rounded-full text-xs font-serif flex items-center gap-2 animate-pulse shadow-2xl border border-white/10">
+            <Move size={14} />
+            <span className="font-medium tracking-wider">点击切换场景，拖拽旋转视角</span>
          </div>
       </div>
 
-      <div className="absolute bottom-12 right-6 z-40">
-         <div className="w-14 h-14 bg-white/5 backdrop-blur-md rounded-full border border-white/10 flex items-center justify-center shadow-inner">
-            <Compass size={28} className="text-white opacity-40" style={{ transform: `rotate(${-rotation}deg)` }} />
-         </div>
+      {/* Bottom Left: Scene Switcher Navigation */}
+      <div className="absolute bottom-8 left-6 z-50 flex gap-3 animate-in slide-in-from-bottom duration-700">
+         {Object.entries(SCENES).map(([key, scene]) => {
+           const isActive = key === currentSceneKey;
+           return (
+             <button
+               key={key}
+               onClick={() => setCurrentSceneKey(key as keyof typeof SCENES)}
+               className={`flex items-center gap-2 px-4 py-2 rounded-xl backdrop-blur-md transition-all border ${
+                 isActive 
+                   ? 'bg-sxuRed/80 border-sxuRed text-white shadow-lg scale-105' 
+                   : 'bg-black/30 border-white/10 text-white/70 hover:bg-black/50 hover:text-white'
+               }`}
+             >
+                <MapPin size={12} className={isActive ? 'fill-white' : ''} />
+                <span className="text-[10px] font-bold font-serif">{scene.name}</span>
+             </button>
+           );
+         })}
       </div>
-      
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_40%,rgba(0,0,0,0.3)_100%)]" />
+
+      {/* Background Overlay */}
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_40%,rgba(0,0,0,0.4)_100%)]" />
     </div>
   );
 };
