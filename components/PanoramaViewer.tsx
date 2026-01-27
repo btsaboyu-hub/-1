@@ -55,10 +55,12 @@ const PanoramaViewer: React.FC<PanoramaViewerProps> = ({
     const geometry = new THREE.SphereGeometry(500, 64, 48);
     geometry.scale(-1, 1, 1);
     
+    // 设置主题色 0x126e82 作为底色，防止图片加载失败时全黑
     const material = new THREE.MeshBasicMaterial({ 
       transparent: true, 
       opacity: 1,
-      side: THREE.BackSide 
+      side: THREE.BackSide,
+      color: 0x126e82 
     });
     const sphere = new THREE.Mesh(geometry, material);
     sphereRef.current = sphere;
@@ -184,6 +186,7 @@ const PanoramaViewer: React.FC<PanoramaViewerProps> = ({
       const textureLoader = new THREE.TextureLoader();
       
       try {
+        console.log(`Loading texture for: ${currentScene.name}`);
         const newTexture = await textureLoader.loadAsync(currentScene.image);
         newTexture.colorSpace = THREE.SRGBColorSpace;
         newTexture.minFilter = THREE.LinearFilter;
@@ -192,9 +195,12 @@ const PanoramaViewer: React.FC<PanoramaViewerProps> = ({
         const mat = sphereRef.current!.material as THREE.MeshBasicMaterial;
         if (mat.map) mat.map.dispose();
         mat.map = newTexture;
+        // 加载成功后将颜色设为白色，以便显示贴图原色
+        mat.color.setHex(0xffffff); 
         mat.needsUpdate = true;
       } catch (err) {
-        console.warn("Scene file load failed, using fallback.", err);
+        console.error("Scene texture load failed. Keeping base color.", err);
+        // 不抛出错误，保持程序运行，仅显示底色
       }
       
       // Cleanup hotspots
