@@ -5,6 +5,18 @@ export interface Hotspot {
   title: string;
   description: string;
   images: string[];
+  audioUrl?: string;
+  type: 'info' | 'portal';
+  targetScene?: string;
+}
+
+export interface Scene {
+  id: string;
+  title: string;
+  thumbnail: string;
+  texture: string;
+  description: string;
+  hotspots: Hotspot[];
 }
 
 export interface ExhibitionHall {
@@ -29,6 +41,27 @@ export interface MuseumEvent {
   date: string;
   category: string;
   price: string;
+}
+
+/* --- New Added Types --- */
+
+export type ActivityStatus = 'ongoing' | 'upcoming' | 'ended';
+
+export interface MuseumActivity {
+  id: string;
+  title: string;
+  date: string;
+  status: ActivityStatus;
+  description: string;
+  locationLabel: string;
+  linkedHallId?: string; // If present, clicking navigates to this Panorama scene
+}
+
+export interface HallStatus {
+  id: string;
+  name: string;
+  status: 'open' | 'maintenance' | 'busy';
+  occupancy: number; // 0-100%
 }
 
 export enum AppRoute {

@@ -1,14 +1,27 @@
-
 import React from 'react';
 import { HALLS } from '../constants';
 import { ChevronRight, Layers } from 'lucide-react';
-import GlassCard from './GlassCard';
 
-const HallsGrid: React.FC = () => {
+interface HallsGridProps {
+  onHallSelect?: (id: string) => void;
+}
+
+const HallsGrid: React.FC<HallsGridProps> = ({ onHallSelect }) => {
   return (
     <div className="grid grid-cols-1 gap-6 animate-in fade-in slide-in-from-bottom duration-700">
-      {HALLS.map((hall) => (
-        <div key={hall.id} className="group relative overflow-hidden rounded-[2rem] shadow-xl border border-jadeBlue/5 active:scale-[0.98] transition-all">
+      {HALLS.map((hall, index) => (
+        <div 
+          key={hall.id} 
+          onClick={() => {
+            // Mapping UI Hall IDs to Scene Config IDs
+            // Assumes hall1 -> hall-1, hall2 -> hall-2 convention based on scenesConfig.ts
+            if (onHallSelect) {
+                const sceneId = `hall-${index + 1}`;
+                onHallSelect(sceneId);
+            }
+          }}
+          className="group relative overflow-hidden rounded-[2rem] shadow-xl border border-jadeBlue/5 active:scale-[0.98] transition-all cursor-pointer"
+        >
           <div className="aspect-[21/9] w-full overflow-hidden">
              <img 
                src={hall.image} 

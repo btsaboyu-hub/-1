@@ -1,30 +1,69 @@
 
-import { Hotspot, ExhibitionHall, BookingSlot, MuseumEvent } from './types';
+import { Scene, ExhibitionHall, BookingSlot, MuseumEvent, MuseumActivity, HallStatus } from './types';
 
-export const HOTSPOTS: Record<string, Hotspot[]> = {
+export const MUSEUM_SCENES: Record<string, Scene[]> = {
   '1F': [
     {
-      id: 'h1',
-      position: { x: 400, y: 100, z: -300 },
+      id: 'intro_hall',
       title: '序厅 · 百年基石',
-      description: '展示山西大学堂成立之初的珍贵石刻与校训墙，是进入校史馆的第一站。',
-      images: ['https://images.unsplash.com/photo-1590483734724-38fa19744990?q=80&w=1000&auto=format&fit=crop']
+      thumbnail: 'https://images.unsplash.com/photo-1590483734724-38fa19744990?q=80&w=200&auto=format&fit=crop',
+      texture: 'https://images.unsplash.com/photo-1590483734724-38fa19744990?q=80&w=2000&auto=format&fit=crop',
+      description: '山西大学序厅，展示学校从1902年山西大学堂创立至今的辉煌历程。正中为“百年基石”大型浮雕。',
+      hotspots: [
+        {
+          id: 'h1',
+          position: { x: 450, y: 30, z: -150 },
+          title: '山西大学堂圣旨碑',
+          description: '清光绪二十八年（1902年）设立山西大学堂的奏折批复副本，标志着中国近代高等教育的重要开端。',
+          images: ['https://images.unsplash.com/photo-1516245834210-c4c142787335?q=80&w=1000&auto=format&fit=crop'],
+          audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+          type: 'info'
+        },
+        {
+          id: 'h2',
+          position: { x: -480, y: -20, z: 80 },
+          title: '中西合璧：百年校训',
+          description: '“中西合璧，求真至善”——由创办人岑春煊、李提摩太共同确立，体现了早期山大的国际化视野。',
+          images: ['https://images.unsplash.com/photo-1577727103501-ad5712e52f52?q=80&w=1000&auto=format&fit=crop'],
+          type: 'info'
+        },
+        {
+          id: 'to_history',
+          position: { x: 0, y: -40, z: -480 },
+          title: '前往 · 溯源厅',
+          description: '进入第一单元：1902-1937 溯源时期，探索早期校舍模型与文献。',
+          images: [],
+          type: 'portal',
+          targetScene: 'history_hall'
+        }
+      ]
     },
     {
-      id: 'h2',
-      position: { x: -450, y: -50, z: 100 },
-      title: '西学专斋模拟场景',
-      description: '通过数字孪生技术还原清末民初山西大学堂西学专斋的教学场景。',
-      images: ['https://images.unsplash.com/photo-1516245834210-c4c142787335?q=80&w=1000&auto=format&fit=crop']
+      id: 'history_hall',
+      title: '一单元 · 溯源厅',
+      thumbnail: 'https://images.unsplash.com/photo-1577727103501-ad5712e52f52?q=80&w=200&auto=format&fit=crop',
+      texture: 'https://images.unsplash.com/photo-1577727103501-ad5712e52f52?q=80&w=2000&auto=format&fit=crop',
+      description: '追溯山西大学堂创立初期的筚路蓝缕，展示“中西合璧”的办学理念。',
+      hotspots: [
+        {
+          id: 'h3',
+          position: { x: 300, y: 0, z: -400 },
+          title: '西学专斋旧影',
+          description: '复原了1902年西学专斋的教学场景，展示了早期的物理与化学实验器材。',
+          images: ['https://images.unsplash.com/photo-1532094349884-543bc11b234d?q=80&w=1000&auto=format&fit=crop'],
+          type: 'info'
+        }
+      ]
     }
   ],
   '2F': [
     {
-      id: 'h3',
-      position: { x: 200, y: 50, z: 400 },
-      title: '华章厅 · 成果展',
-      description: '二层核心展区，集中展示建国以来学校在重大科研项目上的辉煌成就。',
-      images: ['https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=1000&auto=format&fit=crop']
+      id: 'result_hall',
+      title: '二层 · 成果厅',
+      thumbnail: 'https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=200&auto=format&fit=crop',
+      texture: 'https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2000&auto=format&fit=crop',
+      description: '展现新时代背景下的教学与科研盛果，包括两院院士墙与国家重点实验室沙盘。',
+      hotspots: []
     }
   ]
 };
@@ -53,14 +92,6 @@ export const HALLS: ExhibitionHall[] = [
     image: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?q=80&w=800&auto=format&fit=crop',
     description: '展现新中国成立后，山西大学在全国学科调整中的贡献与繁荣。',
     stats: '珍贵影像: 45段'
-  },
-  {
-    id: 'hall4',
-    title: '成果厅',
-    subtitle: '2002 - 至今',
-    image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=800&auto=format&fit=crop',
-    description: '步入双一流建设新时代，展示近年来的重大科研突破与育人成果。',
-    stats: '科技实物: 89件'
   }
 ];
 
@@ -72,30 +103,75 @@ export const TIME_SLOTS: BookingSlot[] = [
 export const EVENTS: MuseumEvent[] = [
   {
     id: 'e1',
-    title: '校史专题讲座：从山西大学堂到现代大学',
-    image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=800&auto=format&fit=crop',
-    date: '2024-05-20',
-    category: '学术讲座',
+    title: '百年校史珍品展',
+    image: 'https://images.unsplash.com/photo-1554941068-a252680d25d9?q=80&w=800&auto=format&fit=crop',
+    date: '2024-05-15 至 2024-06-15',
+    category: '特展',
     price: '免费预约'
   },
   {
     id: 'e2',
-    title: '建校122周年珍贵文献特展',
-    image: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?q=80&w=800&auto=format&fit=crop',
-    date: '2024-06-01',
-    category: '临时特展',
-    price: '持证入场'
+    title: '西学专斋落成120周年讲座',
+    image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=800&auto=format&fit=crop',
+    date: '2024-05-22 14:00',
+    category: '讲座',
+    price: '限额50人'
+  },
+  {
+    id: 'e3',
+    title: '校友回馈：校园古建摄影赛',
+    image: 'https://images.unsplash.com/photo-1516245834210-c4c142787335?q=80&w=800&auto=format&fit=crop',
+    date: '进行中',
+    category: '竞赛',
+    price: '参与有礼'
   }
 ];
 
 export const NOTIFICATIONS = [
   { id: 1, type: '预约', title: '预约成功提醒', content: '您预约的2024-05-20 上午场次已审核通过。', time: '10分钟前' },
-  { id: 2, type: '活动', title: '新活动上线', content: '《百年校史珍品展》即将开启，欢迎点击详情预约。', time: '2小时前' },
-  { id: 3, type: '官方', title: '闭馆公告', content: '校史馆将于下周一进行例行设备维护，届时闭馆一天。', time: '昨天' }
+  { id: 2, type: '活动', title: '新活动上线', content: '《百年校史珍品展》即将开启，欢迎点击详情预约。', time: '2小时前' }
 ];
 
 export const SEARCH_SUGGESTIONS = [
-  { category: '展厅', items: ['溯源厅', '峥嵘厅', '华章厅', '成果厅'] },
-  { category: '展品', items: ['西学专斋碑刻', '1902年开学典礼影像', '校友捐赠奖章'] },
-  { category: '活动', items: ['校史讲座', '志愿者招募', '文献特展'] }
+  { category: '展厅', items: ['序厅', '溯源厅', '峥嵘厅', '成果厅'] },
+  { category: '展物', items: ['圣旨碑', '西学专斋', '百年校歌'] }
+];
+
+// --- New Data ---
+
+export const ACTIVITIES: MuseumActivity[] = [
+  {
+    id: 'a1',
+    title: '“晋商与山大”特展',
+    date: '进行中 · 截止 06.30',
+    status: 'ongoing',
+    description: '探索晋商文化如何资助并影响山西大学堂的早期建设，展出珍贵账本与书信。',
+    locationLabel: '中厅展区',
+    linkedHallId: 'hall-2'
+  },
+  {
+    id: 'a2',
+    title: '夜游校史馆：灯光秀',
+    date: '本周六 19:30',
+    status: 'upcoming',
+    description: '首次开放夜间全景游览，配合数字光影技术重现西学专斋旧景。',
+    locationLabel: '校史馆入口',
+    linkedHallId: 'hall-1'
+  },
+  {
+    id: 'a3',
+    title: '1977届校友返校纪念活动',
+    date: '2024.04.20',
+    status: 'ended',
+    description: '恢复高考后的第一届学子重返母校，捐赠当年课堂笔记与生活用品。',
+    locationLabel: '内厅珍藏',
+    linkedHallId: 'hall-3'
+  }
+];
+
+export const HALL_STATUSES: HallStatus[] = [
+  { id: '1', name: '溯源厅', status: 'open', occupancy: 45 },
+  { id: '2', name: '峥嵘厅', status: 'busy', occupancy: 80 },
+  { id: '3', name: '华章厅', status: 'maintenance', occupancy: 0 },
+  { id: '4', name: '未来厅', status: 'open', occupancy: 10 },
 ];

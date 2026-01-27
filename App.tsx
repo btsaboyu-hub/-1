@@ -6,13 +6,15 @@ import ARExhibit from './components/ARExhibit';
 import BookingCalendar from './components/BookingCalendar';
 import HallsGrid from './components/HallsGrid';
 import GlassCard from './components/GlassCard';
+import ActivitiesDrawer from './components/ActivitiesDrawer';
 import { NOTIFICATIONS, SEARCH_SUGGESTIONS } from './constants';
-import { Home, Compass, Camera, Calendar, User, Bell, Search, Menu, ChevronRight, Info, X, Clock, MessageSquare, ShieldAlert, BookOpen, MapPin } from 'lucide-react';
+import { Home, Compass, Camera, Calendar, User, Bell, Search, X, Clock, MessageSquare, ShieldAlert, BookOpen, MapPin, ChevronRight, Info, ScrollText } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(AppRoute.HOME);
+  const [activeHall, setActiveHall] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showFeatureModal, setShowFeatureModal] = useState<'search' | 'notifications' | null>(null);
+  const [showFeatureModal, setShowFeatureModal] = useState<'search' | 'notifications' | 'activities' | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 2000);
@@ -32,6 +34,16 @@ const App: React.FC = () => {
       <span className="text-[11px] font-serif mt-1 tracking-wider">{label}</span>
     </button>
   );
+
+  // High Priority Render: If a Hall is active, render full screen Panorama
+  if (activeHall) {
+    return (
+      <PanoramaViewer 
+        initialSceneId={activeHall} 
+        onExit={() => setActiveHall(null)} 
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -86,7 +98,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* 搜索弹出层 (优化内容) */}
+      {/* 搜索弹出层 */}
       {showFeatureModal === 'search' && (
         <div className="fixed inset-0 z-[60] flex flex-col bg-paperWhite/95 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-300">
            <div className="px-6 pt-16 pb-6 overflow-y-auto no-scrollbar">
@@ -129,7 +141,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* 通知弹出层 (优化内容) */}
+      {/* 通知弹出层 */}
       {showFeatureModal === 'notifications' && (
         <div className="fixed inset-0 z-[60] flex flex-col bg-paperWhite/95 backdrop-blur-xl animate-in fade-in slide-in-from-bottom-4 duration-300">
            <div className="px-6 pt-16 pb-6 flex-1 overflow-y-auto no-scrollbar">
@@ -175,6 +187,13 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Activities Drawer (New Feature) */}
+      <ActivitiesDrawer 
+         isOpen={showFeatureModal === 'activities'} 
+         onClose={() => setShowFeatureModal(null)}
+         onNavigateToHall={(hallId) => setActiveHall(hallId)}
+      />
+
       {/* 主内容区域 */}
       <main className="flex-1 overflow-y-auto no-scrollbar relative pb-32">
         {currentRoute === AppRoute.HOME && (
@@ -186,7 +205,7 @@ const App: React.FC = () => {
                 <span className="text-[10px] text-white/80 uppercase tracking-widest font-sans mb-2 block border-l-2 border-sxuRed pl-3">数字馆藏</span>
                 <h2 className="text-3xl font-serif font-bold mb-5 leading-snug">追寻山大根脉：<br/>虚拟校史馆巡礼</h2>
                 <button 
-                   onClick={() => setCurrentRoute(AppRoute.PANORAMA)}
+                   onClick={() => setActiveHall('hall-1')}
                    className="bg-sxuRed text-white px-8 py-2.5 rounded-full font-serif text-sm shadow-xl hover:translate-y-[-2px] transition-all flex items-center gap-2"
                 >
                   <Compass size={16} /> 开启全景漫游
@@ -194,14 +213,15 @@ const App: React.FC = () => {
               </div>
             </div>
 
+            {/* Changed Grid: 4th Item is now Activities */}
             <div className="grid grid-cols-4 gap-4 transition-page" style={{ animationDelay: '0.2s' }}>
               {[
-                { icon: <Compass size={22}/>, label: '展厅巡游', route: AppRoute.PANORAMA },
-                { icon: <Camera size={22}/>, label: '灵境寻古', route: AppRoute.AR },
-                { icon: <Calendar size={22}/>, label: '团队预约', route: AppRoute.BOOKING },
-                { icon: <User size={22}/>, label: '我的主页', route: AppRoute.PROFILE }
+                { icon: <Compass size={22}/>, label: '展厅巡游', action: () => setActiveHall('hall-1') },
+                { icon: <Camera size={22}/>, label: '灵境寻古', action: () => setCurrentRoute(AppRoute.AR) },
+                { icon: <Calendar size={22}/>, label: '团队预约', action: () => setCurrentRoute(AppRoute.BOOKING) },
+                { icon: <ScrollText size={22}/>, label: '校史活动', action: () => setShowFeatureModal('activities') }
               ].map((item, idx) => (
-                <button key={idx} onClick={() => setCurrentRoute(item.route)} className="flex flex-col items-center gap-2">
+                <button key={idx} onClick={item.action} className="flex flex-col items-center gap-2">
                    <div className="w-16 h-16 glass-morphism rounded-3xl flex items-center justify-center text-jadeBlue border border-jadeBlue/10 shadow-sm hover:translate-y-[-2px] hover:shadow-md transition-all">
                       {item.icon}
                    </div>
@@ -218,12 +238,18 @@ const App: React.FC = () => {
                 </h3>
                 <span className="text-[11px] font-bold text-jadeBlue/30 uppercase tracking-[0.2em]">4大核心单元</span>
               </div>
-              <HallsGrid />
+              <HallsGrid onHallSelect={(id) => setActiveHall(id)} />
             </div>
           </div>
         )}
 
-        {currentRoute === AppRoute.PANORAMA && <div className="h-full w-full absolute inset-0"><PanoramaViewer /></div>}
+        {currentRoute === AppRoute.PANORAMA && (
+           /* Fallback to hall-1 if Panorama tab is clicked directly */
+           <div className="flex items-center justify-center h-full">
+             <button onClick={() => setActiveHall('hall-1')} className="bg-jadeBlue text-white px-6 py-3 rounded-full">进入全景大厅</button>
+           </div>
+        )}
+        
         {currentRoute === AppRoute.AR && <div className="h-full w-full absolute inset-0"><ARExhibit /></div>}
         {currentRoute === AppRoute.BOOKING && <div className="px-6 py-12"><BookingCalendar /></div>}
         {currentRoute === AppRoute.PROFILE && (
@@ -265,7 +291,7 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* 底部导航 - 修改 label 回 "我的" */}
+      {/* 底部导航 */}
       <footer className="absolute bottom-8 inset-x-6 z-50">
         <GlassCard className="py-4 px-8 rounded-[2rem] flex justify-between items-center shadow-[0_20px_40px_-15px_rgba(18,110,130,0.3)] border-white/60">
            <NavItem route={AppRoute.HOME} icon={<Home size={22}/>} label="首页" />

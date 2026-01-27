@@ -1,37 +1,38 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { HOTSPOTS } from '../constants';
-import { Hotspot } from '../types';
-import { Info, X, Map as MapIcon, Layers, ChevronUp, ChevronDown, Move } from 'lucide-react';
-import GlassCard from './GlassCard';
+import { SCENES } from '../scenesConfig';
+import { Volume2, VolumeX, RotateCcw, Maximize2, MousePointer2, Compass, Move, Info, ArrowLeft } from 'lucide-react';
 
-const FLOOR_DATA = {
-  '1F': {
-    texture: 'https://images.unsplash.com/photo-1590483734724-38fa19744990?q=80&w=2000&auto=format&fit=crop',
-    label: '一层 · 溯源峥嵘',
-    desc: '追溯山西大学堂创立初期的辉煌历程'
-  },
-  '2F': {
-    texture: 'https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2000&auto=format&fit=crop',
-    label: '二层 · 华章成果',
-    desc: '展现新时代背景下的教学与科研盛果'
-  }
-};
+interface PanoramaViewerProps {
+  initialSceneId?: string;
+  onExit?: () => void;
+}
 
-const PanoramaViewer: React.FC = () => {
+const PanoramaViewer: React.FC<PanoramaViewerProps> = ({ 
+  initialSceneId = 'hall-1', 
+  onExit 
+}) => {
   const mountRef = useRef<HTMLDivElement>(null);
-  const [currentFloor, setCurrentFloor] = useState<'1F' | '2F'>('1F');
-  const [selectedHotspot, setSelectedHotspot] = useState<Hotspot | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  
+  // Safe cast to ensure the key exists, defaulting to hall-1 if invalid
+  const validInitialId = Object.keys(SCENES).includes(initialSceneId) 
+    ? (initialSceneId as keyof typeof SCENES) 
+    : 'hall-1';
+
+  const [currentSceneKey, setCurrentSceneKey] = useState<keyof typeof SCENES>(validInitialId);
   const [rotation, setRotation] = useState(0);
-  const [isChangingFloor, setIsChangingFloor] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isChangingScene, setIsChangingScene] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [autoRotate, setAutoRotate] = useState(true);
   
   const sceneRef = useRef<THREE.Scene | null>(null);
   const sphereRef = useRef<THREE.Mesh | null>(null);
   const hotspotGroupRef = useRef<THREE.Group | null>(null);
 
-  // 初始化场景
+  const currentScene = SCENES[currentSceneKey];
+
+  // Initialize Three.js
   useEffect(() => {
     if (!mountRef.current) return;
 
@@ -40,20 +41,24 @@ const PanoramaViewer: React.FC = () => {
 
     const scene = new THREE.Scene();
     sceneRef.current = scene;
-    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(75, width / height, 1, 1100);
     const cameraTarget = new THREE.Vector3(0, 0, 0);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ 
+      antialias: true,
+      powerPreference: "high-performance"
+    });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     mountRef.current.appendChild(renderer.domElement);
 
-    const geometry = new THREE.SphereGeometry(500, 60, 40);
+    const geometry = new THREE.SphereGeometry(500, 64, 48);
     geometry.scale(-1, 1, 1);
     
     const material = new THREE.MeshBasicMaterial({ 
       transparent: true, 
-      opacity: 1 
+      opacity: 1,
+      side: THREE.BackSide 
     });
     const sphere = new THREE.Mesh(geometry, material);
     sphereRef.current = sphere;
@@ -74,20 +79,28 @@ const PanoramaViewer: React.FC = () => {
 
     const onPointerDown = (event: PointerEvent) => {
       isUserInteracting = true;
+      setAutoRotate(false);
       onPointerDownPointerX = event.clientX;
       onPointerDownPointerY = event.clientY;
       onPointerDownLon = lon;
       onPointerDownLat = lat;
 
-      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      const rect = mountRef.current!.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      
       raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(hotspotGroup.children);
+      const intersects = raycaster.intersectObjects(hotspotGroup.children, true);
+      
       if (intersects.length > 0) {
-        const clickedDot = intersects.find(intersect => intersect.object instanceof THREE.Mesh && intersect.object.userData.id);
-        if (clickedDot) {
-          setSelectedHotspot(clickedDot.object.userData as Hotspot);
+        let clickedObj = intersects[0].object;
+        let target = clickedObj.userData.target;
+        let parent = clickedObj.parent;
+        while (!target && parent && parent !== hotspotGroup) {
+          target = parent.userData.target;
+          parent = parent.parent;
         }
+        if (target) setCurrentSceneKey(target as keyof typeof SCENES);
       }
     };
 
@@ -101,13 +114,22 @@ const PanoramaViewer: React.FC = () => {
     };
 
     const onPointerUp = () => { isUserInteracting = false; };
+    const onWheel = (event: WheelEvent) => {
+      camera.fov = THREE.MathUtils.clamp(camera.fov + event.deltaY * 0.05, 30, 90);
+      camera.updateProjectionMatrix();
+    };
 
     mountRef.current.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
+    mountRef.current.addEventListener('wheel', onWheel);
 
     const animate = () => {
       requestAnimationFrame(animate);
+      if (autoRotate && !isUserInteracting) {
+        lon += 0.04;
+        setRotation(lon);
+      }
       phi = THREE.MathUtils.degToRad(90 - lat);
       theta = THREE.MathUtils.degToRad(lon);
       cameraTarget.x = 500 * Math.sin(phi) * Math.cos(theta);
@@ -115,16 +137,22 @@ const PanoramaViewer: React.FC = () => {
       cameraTarget.z = 500 * Math.sin(phi) * Math.sin(theta);
       camera.lookAt(cameraTarget);
       renderer.render(scene, camera);
+      
+      hotspotGroup.children.forEach(child => {
+        if (child.name === 'pulse-ring') {
+          const s = 1 + Math.sin(Date.now() * 0.003) * 0.2;
+          child.scale.set(s, s, 1);
+        }
+      });
     };
 
     animate();
 
     const handleResize = () => {
-      const w = mountRef.current?.clientWidth || window.innerWidth;
-      const h = mountRef.current?.clientHeight || window.innerHeight;
-      camera.aspect = w / h;
+      if (!mountRef.current) return;
+      camera.aspect = mountRef.current.clientWidth / mountRef.current.clientHeight;
       camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
+      renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
     };
     window.addEventListener('resize', handleResize);
 
@@ -132,175 +160,138 @@ const PanoramaViewer: React.FC = () => {
       mountRef.current?.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      mountRef.current?.removeEventListener('wheel', onWheel);
       window.removeEventListener('resize', handleResize);
       renderer.dispose();
+      geometry.dispose();
+      // Safe cleanup
+      if (sphereRef.current) {
+        if (Array.isArray(sphereRef.current.material)) {
+          sphereRef.current.material.forEach(m => m.dispose());
+        } else {
+          sphereRef.current.material.dispose();
+        }
+      }
     };
-  }, []);
+  }, [autoRotate]);
 
-  // 楼层切换与纹理加载
+  // Load Scene Texture and Hotspots
   useEffect(() => {
     if (!sphereRef.current || !hotspotGroupRef.current) return;
 
-    const updateContent = async () => {
-      setIsChangingFloor(true);
-      setIsTransitioning(true);
-      
+    const loadScene = async () => {
+      setIsChangingScene(true);
       const textureLoader = new THREE.TextureLoader();
-      const newTexture = await textureLoader.loadAsync(FLOOR_DATA[currentFloor].texture);
       
-      // 清空旧热点
+      try {
+        const newTexture = await textureLoader.loadAsync(currentScene.image);
+        newTexture.colorSpace = THREE.SRGBColorSpace;
+        newTexture.minFilter = THREE.LinearFilter;
+        newTexture.magFilter = THREE.LinearFilter;
+        
+        const mat = sphereRef.current!.material as THREE.MeshBasicMaterial;
+        if (mat.map) mat.map.dispose();
+        mat.map = newTexture;
+        mat.needsUpdate = true;
+      } catch (err) {
+        console.warn("Scene file load failed, using fallback.", err);
+      }
+      
+      // Cleanup hotspots
       while(hotspotGroupRef.current!.children.length > 0) {
-        hotspotGroupRef.current!.remove(hotspotGroupRef.current!.children[0]);
+        const obj = hotspotGroupRef.current!.children[0];
+        hotspotGroupRef.current!.remove(obj);
       }
 
-      // 添加新楼层热点
-      HOTSPOTS[currentFloor].forEach(hs => {
-        const dotGeo = new THREE.SphereGeometry(15, 32, 32);
-        const dotMat = new THREE.MeshBasicMaterial({ color: 0xb22222, transparent: true, opacity: 0.9 });
-        const dot = new THREE.Mesh(dotGeo, dotMat);
-        dot.position.set(hs.position.x, hs.position.y, hs.position.z);
-        dot.userData = hs;
-        hotspotGroupRef.current!.add(dot);
+      currentScene.hotspots.forEach(hs => {
+        const group = new THREE.Group();
+        group.userData = { target: hs.target };
+        const pos = new THREE.Vector3(...hs.position).normalize().multiplyScalar(450);
+        
+        const dot = new THREE.Mesh(new THREE.SphereGeometry(12, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 }));
+        group.add(dot);
 
-        const ringGeo = new THREE.RingGeometry(18, 22, 32);
-        const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
-        const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.position.copy(dot.position);
+        const ring = new THREE.Mesh(new THREE.RingGeometry(15, 25, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.4 }));
+        ring.name = 'pulse-ring';
         ring.lookAt(0, 0, 0);
-        hotspotGroupRef.current!.add(ring);
+        group.add(ring);
+
+        group.position.copy(pos);
+        hotspotGroupRef.current!.add(group);
       });
 
-      // 更新纹理
-      (sphereRef.current!.material as THREE.MeshBasicMaterial).map = newTexture;
-      (sphereRef.current!.material as THREE.MeshBasicMaterial).needsUpdate = true;
-      
-      // 延迟结束动画，确保平滑
-      setTimeout(() => {
-        setIsChangingFloor(false);
-        setTimeout(() => setIsTransitioning(false), 300);
-      }, 600);
+      setTimeout(() => setIsChangingScene(false), 600);
     };
 
-    updateContent();
-  }, [currentFloor]);
+    loadScene();
+  }, [currentSceneKey]);
 
   return (
-    <div className="relative w-full h-full bg-black overflow-hidden">
-      {/* 全景渲染容器 */}
+    <div className="fixed inset-0 w-screen h-screen bg-black overflow-hidden select-none z-[100]">
+      <audio ref={audioRef} loop src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" />
+      
       <div 
         ref={mountRef} 
-        className={`w-full h-full cursor-grab active:cursor-grabbing transition-all duration-700 ease-in-out ${
-          isChangingFloor ? 'opacity-0 scale-105 blur-lg' : 'opacity-100 scale-100 blur-0'
+        className={`w-full h-full cursor-grab active:cursor-grabbing transition-all duration-1000 ${
+          isChangingScene ? 'opacity-0 scale-105 blur-2xl' : 'opacity-100 scale-100 blur-0'
         }`} 
       />
 
-      {/* 楼层切换覆盖层 (动画中显示) */}
-      {isTransitioning && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-md z-10 transition-opacity">
-           <div className="w-20 h-20 relative mb-6">
-              <div className="absolute inset-0 border-4 border-white/20 rounded-full" />
-              <div className="absolute inset-0 border-t-4 border-sxuRed rounded-full animate-spin" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                 <span className="text-white font-serif font-bold text-2xl">{currentFloor}</span>
-              </div>
-           </div>
-           <h4 className="text-white font-serif text-lg tracking-[0.3em] font-bold animate-pulse">正在穿梭至{currentFloor}展区</h4>
-           <p className="text-white/40 text-[10px] mt-2 uppercase tracking-widest">{FLOOR_DATA[currentFloor].label}</p>
-        </div>
-      )}
-
-      {/* 交互控件: 小地图 */}
-      <div className="absolute bottom-40 right-8 w-32 h-32 glass-morphism rounded-full border-2 border-white/20 overflow-hidden flex items-center justify-center shadow-2xl z-20">
-         <div className="relative w-full h-full flex items-center justify-center opacity-20">
-            <MapIcon className="text-jadeBlue" size={48} />
-         </div>
-         <div 
-           className="absolute w-4 h-4 bg-sxuRed rounded-full shadow-[0_0_15px_#b22222] border-2 border-white transition-transform duration-300"
-           style={{ transform: `rotate(${-rotation}deg) translateY(-20px)` }}
-         >
-           <div className="absolute -top-5 left-1/2 -translate-x-1/2 w-0.5 h-5 bg-sxuRed"></div>
-         </div>
-         <div className="absolute top-2 text-[8px] font-bold text-jadeBlue/60 font-serif">ORIENTATION</div>
-      </div>
-
-      {/* 楼层选择器 (优化视觉) */}
-      <div className="absolute bottom-40 left-8 flex flex-col gap-4 z-20">
-         <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-1.5 flex flex-col gap-1.5 shadow-2xl">
-            <button 
-              onClick={() => setCurrentFloor('2F')}
-              className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center transition-all ${
-                currentFloor === '2F' 
-                 ? 'bg-jadeBlue text-white shadow-lg scale-110 ring-4 ring-jadeBlue/20' 
-                 : 'text-white/60 hover:bg-white/10 active:scale-90'
-              }`}
-            >
-               <ChevronUp size={14} className={currentFloor === '2F' ? 'animate-bounce' : ''}/>
-               <span className="font-serif font-bold text-sm">2F</span>
-            </button>
-            <div className="w-full h-px bg-white/10" />
-            <button 
-              onClick={() => setCurrentFloor('1F')}
-              className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center transition-all ${
-                currentFloor === '1F' 
-                 ? 'bg-jadeBlue text-white shadow-lg scale-110 ring-4 ring-jadeBlue/20' 
-                 : 'text-white/60 hover:bg-white/10 active:scale-90'
-              }`}
-            >
-               <span className="font-serif font-bold text-sm">1F</span>
-               <ChevronDown size={14} className={currentFloor === '1F' ? 'animate-bounce' : ''}/>
-            </button>
-         </div>
-         <div className="px-2">
-            <p className="text-[10px] text-white/40 font-bold tracking-widest uppercase">Select Level</p>
-         </div>
-      </div>
-
-      {/* 详情浮窗 */}
-      {selectedHotspot && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/70 backdrop-blur-lg animate-in fade-in duration-300">
-          <GlassCard className="max-w-md w-full animate-in zoom-in-95 duration-500 bg-white border-none shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)]">
-            <div className="flex justify-between items-start mb-5">
-              <div className="flex flex-col">
-                <h3 className="text-2xl font-serif text-jadeBlue font-bold">{selectedHotspot.title}</h3>
-                <div className="w-10 h-1 bg-sxuRed mt-2 rounded-full" />
-              </div>
-              <button onClick={() => setSelectedHotspot(null)} className="p-2 rounded-full hover:bg-jadeBlue/5 text-jadeBlue/40 transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-            <div className="aspect-[16/10] mb-6 rounded-3xl overflow-hidden shadow-2xl border border-jadeBlue/5">
-              <img src={selectedHotspot.images[0]} alt={selectedHotspot.title} className="w-full h-full object-cover" />
-            </div>
-            <p className="text-inkBlack/70 font-serif text-base leading-relaxed mb-10">
-              {selectedHotspot.description}
-            </p>
-            <div className="flex gap-4">
-              <button className="flex-1 bg-jadeBlue text-white py-4 rounded-2xl text-sm font-bold font-serif shadow-xl hover:shadow-jadeBlue/20 active:scale-95 transition-all">
-                开启语音导览
-              </button>
-              <button className="flex-1 border-2 border-jadeBlue/10 text-jadeBlue py-4 rounded-2xl text-sm font-bold font-serif hover:bg-jadeBlue/5 active:scale-95 transition-all">
-                空间透视
-              </button>
-            </div>
-          </GlassCard>
-        </div>
-      )}
-
-      {/* 当前楼层标识 */}
-      <div className="absolute top-32 left-6 flex flex-col gap-2 z-20">
-        <GlassCard className="py-2.5 px-5 flex items-center gap-3 bg-white/80 border-none shadow-xl rounded-2xl backdrop-blur-md">
-          <Layers size={16} className="text-sxuRed" />
-          <div className="flex flex-col">
-            <span className="text-xs font-bold tracking-widest text-jadeBlue font-serif">
-              {FLOOR_DATA[currentFloor].label}
-            </span>
-            <span className="text-[8px] text-jadeBlue/40 font-bold uppercase">{FLOOR_DATA[currentFloor].desc}</span>
-          </div>
-        </GlassCard>
-        <button className="flex items-center gap-2 py-2 px-4 bg-white/40 backdrop-blur-md rounded-full text-[10px] text-white font-bold tracking-widest uppercase hover:bg-white/60 transition-all">
-           <Move size={12}/> 点击或拖动探索空间
+      {/* Exit Button */}
+      {onExit && (
+        <button 
+          onClick={onExit}
+          className="absolute top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-black/40 backdrop-blur-md border border-white/20 rounded-full text-white hover:bg-sxuRed hover:border-sxuRed transition-all group animate-in slide-in-from-top-4"
+        >
+          <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+          <span className="text-xs font-serif font-bold tracking-widest">退出漫游</span>
         </button>
+      )}
+
+      {/* Top Left Label (Adjusted position) */}
+      <div className="absolute top-24 left-6 z-40 pointer-events-none">
+         <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl px-6 py-4 shadow-2xl animate-in slide-in-from-left duration-700">
+            <div className="flex items-center gap-3">
+               <div className="w-1.5 h-6 bg-sxuRed rounded-full shadow-[0_0_10px_rgba(178,34,34,0.5)]" />
+               <h2 className="text-xl font-serif font-bold text-white tracking-widest drop-shadow-md">{currentScene.name}</h2>
+            </div>
+            <div className="flex items-center gap-2 mt-1.5 opacity-60">
+              <Info size={10} className="text-white" />
+              <p className="text-[9px] text-white uppercase tracking-[0.2em] font-sans font-bold">Centennial SXU · 360° Virtual Tour</p>
+            </div>
+         </div>
       </div>
+
+      {/* Control Buttons */}
+      <div className="absolute right-6 top-24 flex flex-col gap-4 z-40">
+         {[
+           { icon: isMuted ? <VolumeX size={18}/> : <Volume2 size={18}/>, label: '音乐', action: () => { setIsMuted(!isMuted); if (isMuted) audioRef.current?.play(); else audioRef.current?.pause(); } },
+           { icon: <RotateCcw size={18}/>, label: '重置', action: () => window.location.reload() },
+           { icon: <MousePointer2 size={18} className={autoRotate ? 'opacity-30' : 'text-sxuRed'}/>, label: '自旋', action: () => setAutoRotate(!autoRotate) },
+           { icon: <Maximize2 size={18}/>, label: '全屏', action: () => document.documentElement.requestFullscreen() }
+         ].map((item, idx) => (
+           <button key={idx} onClick={item.action} className="w-11 h-11 bg-black/30 backdrop-blur-md border border-white/10 rounded-full flex flex-col items-center justify-center text-white shadow-xl hover:bg-jadeBlue transition-all group">
+              {item.icon}
+              <span className="text-[7px] font-bold mt-1 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-tighter">{item.label}</span>
+           </button>
+         ))}
+      </div>
+
+      {/* Guide Tooltip */}
+      <div className="absolute bottom-12 inset-x-0 z-40 flex justify-center pointer-events-none">
+         <div className="bg-black/40 backdrop-blur-lg text-white/90 px-5 py-2.5 rounded-full text-[11px] font-serif border border-white/10 flex items-center gap-2 animate-pulse shadow-2xl">
+            <Move size={14} className="text-sxuRed" />
+            <span>点击地面<span className="text-sxuRed mx-1 font-bold">光圈</span>切换场景，拖拽旋转视角</span>
+         </div>
+      </div>
+
+      <div className="absolute bottom-12 right-6 z-40">
+         <div className="w-14 h-14 bg-white/5 backdrop-blur-md rounded-full border border-white/10 flex items-center justify-center shadow-inner">
+            <Compass size={28} className="text-white opacity-40" style={{ transform: `rotate(${-rotation}deg)` }} />
+         </div>
+      </div>
+      
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_40%,rgba(0,0,0,0.3)_100%)]" />
     </div>
   );
 };
