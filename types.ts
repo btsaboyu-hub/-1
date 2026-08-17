@@ -45,7 +45,7 @@ export interface MuseumEvent {
 
 /* --- New Added Types --- */
 
-export type ActivityStatus = 'ongoing' | 'upcoming' | 'ended';
+export type ActivityStatus = 'digital' | 'concept' | 'archive';
 
 export interface MuseumActivity {
   id: string;
@@ -55,13 +55,6 @@ export interface MuseumActivity {
   description: string;
   locationLabel: string;
   linkedHallId?: string; // If present, clicking navigates to this Panorama scene
-}
-
-export interface HallStatus {
-  id: string;
-  name: string;
-  status: 'open' | 'maintenance' | 'busy';
-  occupancy: number; // 0-100%
 }
 
 export enum AppRoute {

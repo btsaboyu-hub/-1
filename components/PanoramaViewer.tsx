@@ -1,68 +1,41 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { SCENES } from '../scenesConfig';
-import { Volume2, VolumeX, Move, Info, ArrowLeft, MapPin } from 'lucide-react';
+import { ArrowLeft, Info, LoaderCircle, MapPin, Move, RotateCcw } from 'lucide-react';
 
 interface PanoramaViewerProps {
   initialSceneId?: string;
   onExit?: () => void;
 }
 
-const PanoramaViewer: React.FC<PanoramaViewerProps> = ({ 
-  initialSceneId = 'hall-1', 
-  onExit 
-}) => {
-  const mountRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  
-  // Safe cast to ensure the key exists, defaulting to hall-1 if invalid
-  const validInitialId = Object.keys(SCENES).includes(initialSceneId) 
-    ? (initialSceneId as keyof typeof SCENES) 
+const PanoramaViewer: React.FC<PanoramaViewerProps> = ({ initialSceneId = 'hall-1', onExit }) => {
+  const validInitialId = Object.keys(SCENES).includes(initialSceneId)
+    ? initialSceneId as keyof typeof SCENES
     : 'hall-1';
-
   const [currentSceneKey, setCurrentSceneKey] = useState<keyof typeof SCENES>(validInitialId);
-  const [rotation, setRotation] = useState(0);
-  const [isChangingScene, setIsChangingScene] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
-  const [autoRotate, setAutoRotate] = useState(true);
+  const [isChangingScene, setIsChangingScene] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const sphereRef = useRef<THREE.Mesh | null>(null);
+  const mountRef = useRef<HTMLDivElement>(null);
+  const sphereRef = useRef<THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial> | null>(null);
   const hotspotGroupRef = useRef<THREE.Group | null>(null);
-
+  const autoRotateRef = useRef(true);
   const currentScene = SCENES[currentSceneKey];
 
-  // Initialize Three.js
   useEffect(() => {
-    if (!mountRef.current) return;
-
-    const width = mountRef.current.clientWidth;
-    const height = mountRef.current.clientHeight;
+    const mount = mountRef.current;
+    if (!mount) return;
 
     const scene = new THREE.Scene();
-    sceneRef.current = scene;
-    const camera = new THREE.PerspectiveCamera(75, width / height, 1, 1100);
-    const cameraTarget = new THREE.Vector3(0, 0, 0);
-
-    const renderer = new THREE.WebGLRenderer({ 
-      antialias: true,
-      powerPreference: "high-performance"
-    });
-    renderer.setSize(width, height);
+    const camera = new THREE.PerspectiveCamera(72, mount.clientWidth / mount.clientHeight, 1, 1100);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    mountRef.current.appendChild(renderer.domElement);
+    mount.appendChild(renderer.domElement);
 
     const geometry = new THREE.SphereGeometry(500, 64, 48);
-    // 关键修正：通过负缩放翻转几何体以朝向内部。
     geometry.scale(-1, 1, 1);
-    
-    // 初始化材质：设置底色
-    const material = new THREE.MeshBasicMaterial({ 
-      color: 0x126e82, // 设置主题色为底色
-      map: null
-    });
-    
+    const material = new THREE.MeshBasicMaterial({ color: 0x071b20 });
     const sphere = new THREE.Mesh(geometry, material);
     sphereRef.current = sphere;
     scene.add(sphere);
@@ -72,254 +45,204 @@ const PanoramaViewer: React.FC<PanoramaViewerProps> = ({
     scene.add(hotspotGroup);
 
     const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-
-    let lon = 0, lat = 0;
-    let phi = 0, theta = 0;
-    let isUserInteracting = false;
-    let onPointerDownPointerX = 0, onPointerDownPointerY = 0;
-    let onPointerDownLon = 0, onPointerDownLat = 0;
+    const pointer = new THREE.Vector2();
+    const target = new THREE.Vector3();
+    let longitude = 0;
+    let latitude = 0;
+    let pointerDownX = 0;
+    let pointerDownY = 0;
+    let pointerDownLongitude = 0;
+    let pointerDownLatitude = 0;
+    let isInteracting = false;
+    let moved = false;
+    let animationFrame = 0;
 
     const onPointerDown = (event: PointerEvent) => {
-      isUserInteracting = true;
+      isInteracting = true;
+      moved = false;
+      autoRotateRef.current = false;
       setIsDragging(true);
-      setAutoRotate(false);
-      onPointerDownPointerX = event.clientX;
-      onPointerDownPointerY = event.clientY;
-      onPointerDownLon = lon;
-      onPointerDownLat = lat;
-
-      // Raycast for hotspots
-      const rect = mountRef.current!.getBoundingClientRect();
-      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-      
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(hotspotGroup.children, true);
-      
-      if (intersects.length > 0) {
-        let clickedObj = intersects[0].object;
-        let target = clickedObj.userData.target;
-        let parent = clickedObj.parent;
-        while (!target && parent && parent !== hotspotGroup) {
-          target = parent.userData.target;
-          parent = parent.parent;
-        }
-        if (target) setCurrentSceneKey(target as keyof typeof SCENES);
-      }
+      pointerDownX = event.clientX;
+      pointerDownY = event.clientY;
+      pointerDownLongitude = longitude;
+      pointerDownLatitude = latitude;
     };
 
     const onPointerMove = (event: PointerEvent) => {
-      if (isUserInteracting) {
-        lon = (onPointerDownPointerX - event.clientX) * 0.1 + onPointerDownLon;
-        lat = (event.clientY - onPointerDownPointerY) * 0.1 + onPointerDownLat;
-        lat = Math.max(-85, Math.min(85, lat));
-        setRotation(lon);
+      if (!isInteracting) return;
+      const distance = Math.abs(event.clientX - pointerDownX) + Math.abs(event.clientY - pointerDownY);
+      if (distance > 4) moved = true;
+      longitude = (pointerDownX - event.clientX) * 0.1 + pointerDownLongitude;
+      latitude = THREE.MathUtils.clamp((event.clientY - pointerDownY) * 0.1 + pointerDownLatitude, -85, 85);
+    };
+
+    const onPointerUp = (event: PointerEvent) => {
+      if (!isInteracting) return;
+      isInteracting = false;
+      setIsDragging(false);
+      if (moved) return;
+
+      const rect = mount.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const intersection = raycaster.intersectObjects(hotspotGroup.children, true)[0];
+      let object: THREE.Object3D | null = intersection?.object || null;
+      while (object && object !== hotspotGroup) {
+        const nextScene = object.userData.target as keyof typeof SCENES | undefined;
+        if (nextScene && SCENES[nextScene]) {
+          setCurrentSceneKey(nextScene);
+          return;
+        }
+        object = object.parent;
       }
     };
 
-    const onPointerUp = () => { 
-      isUserInteracting = false; 
-      setIsDragging(false);
-    };
-    
     const onWheel = (event: WheelEvent) => {
-      camera.fov = THREE.MathUtils.clamp(camera.fov + event.deltaY * 0.05, 30, 90);
+      event.preventDefault();
+      camera.fov = THREE.MathUtils.clamp(camera.fov + event.deltaY * 0.04, 35, 88);
       camera.updateProjectionMatrix();
     };
-
-    mountRef.current.addEventListener('pointerdown', onPointerDown);
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-    mountRef.current.addEventListener('wheel', onWheel);
 
     const animate = () => {
-      requestAnimationFrame(animate);
-      if (autoRotate && !isUserInteracting) {
-        lon += 0.04;
-        setRotation(lon);
-      }
-      phi = THREE.MathUtils.degToRad(90 - lat);
-      theta = THREE.MathUtils.degToRad(lon);
-      cameraTarget.x = 500 * Math.sin(phi) * Math.cos(theta);
-      cameraTarget.y = 500 * Math.cos(phi);
-      cameraTarget.z = 500 * Math.sin(phi) * Math.sin(theta);
-      camera.lookAt(cameraTarget);
-      renderer.render(scene, camera);
-      
-      hotspotGroup.children.forEach(child => {
-        if (child.name === 'pulse-ring') {
-          const s = 1 + Math.sin(Date.now() * 0.003) * 0.2;
-          child.scale.set(s, s, 1);
+      animationFrame = requestAnimationFrame(animate);
+      if (autoRotateRef.current && !isInteracting) longitude += 0.025;
+      const phi = THREE.MathUtils.degToRad(90 - latitude);
+      const theta = THREE.MathUtils.degToRad(longitude);
+      target.set(500 * Math.sin(phi) * Math.cos(theta), 500 * Math.cos(phi), 500 * Math.sin(phi) * Math.sin(theta));
+      camera.lookAt(target);
+      hotspotGroup.traverse((object) => {
+        if (object.name === 'pulse-ring') {
+          const scale = 1 + Math.sin(Date.now() * 0.003) * 0.18;
+          object.scale.set(scale, scale, 1);
         }
       });
+      renderer.render(scene, camera);
     };
 
+    const onResize = () => {
+      camera.aspect = mount.clientWidth / mount.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(mount.clientWidth, mount.clientHeight);
+    };
+
+    mount.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    mount.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('resize', onResize);
     animate();
 
-    const handleResize = () => {
-      if (!mountRef.current) return;
-      camera.aspect = mountRef.current.clientWidth / mountRef.current.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
-    };
-    window.addEventListener('resize', handleResize);
-
     return () => {
-      mountRef.current?.removeEventListener('pointerdown', onPointerDown);
+      cancelAnimationFrame(animationFrame);
+      mount.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
-      mountRef.current?.removeEventListener('wheel', onWheel);
-      window.removeEventListener('resize', handleResize);
-      renderer.dispose();
+      mount.removeEventListener('wheel', onWheel);
+      window.removeEventListener('resize', onResize);
+      sphere.material.map?.dispose();
+      material.dispose();
       geometry.dispose();
-      if (sphereRef.current) {
-        if (Array.isArray(sphereRef.current.material)) {
-          sphereRef.current.material.forEach(m => m.dispose());
-        } else {
-          sphereRef.current.material.dispose();
-        }
-      }
+      renderer.dispose();
+      renderer.domElement.remove();
+      sphereRef.current = null;
+      hotspotGroupRef.current = null;
     };
-  }, [autoRotate]);
+  }, []);
 
-  // Load Scene Texture and Hotspots
   useEffect(() => {
-    if (!sphereRef.current || !hotspotGroupRef.current) return;
+    const sphere = sphereRef.current;
+    const hotspotGroup = hotspotGroupRef.current;
+    if (!sphere || !hotspotGroup) return;
+    let cancelled = false;
+    setIsChangingScene(true);
+    setLoadError(false);
 
-    const loadScene = async () => {
-      setIsChangingScene(true);
-      const textureLoader = new THREE.TextureLoader();
-      
-      try {
-        console.log(`Loading texture for: ${currentScene.name}`);
-        const newTexture = await textureLoader.loadAsync(currentScene.image);
-        newTexture.colorSpace = THREE.SRGBColorSpace;
-        newTexture.minFilter = THREE.LinearFilter;
-        newTexture.magFilter = THREE.LinearFilter;
-        
-        const mat = sphereRef.current!.material as THREE.MeshBasicMaterial;
-        if (mat.map) mat.map.dispose();
-        mat.map = newTexture;
-        mat.color.setHex(0xffffff); 
-        mat.needsUpdate = true;
-      } catch (err) {
-        console.error("Scene texture load failed.", err);
-        const mat = sphereRef.current!.material as THREE.MeshBasicMaterial;
-        mat.map = null;
-        mat.color.setHex(0x126e82);
-        mat.needsUpdate = true;
-      }
-      
-      // Cleanup hotspots
-      while(hotspotGroupRef.current!.children.length > 0) {
-        const obj = hotspotGroupRef.current!.children[0];
-        hotspotGroupRef.current!.remove(obj);
-      }
+    new THREE.TextureLoader().load(
+      currentScene.image,
+      (texture) => {
+        if (cancelled) { texture.dispose(); return; }
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        sphere.material.map?.dispose();
+        sphere.material.map = texture;
+        sphere.material.color.setHex(0xffffff);
+        sphere.material.needsUpdate = true;
+        setIsChangingScene(false);
+      },
+      undefined,
+      () => {
+        if (cancelled) return;
+        sphere.material.map = null;
+        sphere.material.color.setHex(0x071b20);
+        sphere.material.needsUpdate = true;
+        setLoadError(true);
+        setIsChangingScene(false);
+      },
+    );
 
-      currentScene.hotspots.forEach(hs => {
-        const group = new THREE.Group();
-        group.userData = { target: hs.target };
-        const pos = new THREE.Vector3(...hs.position).normalize().multiplyScalar(450);
-        
-        const dot = new THREE.Mesh(new THREE.SphereGeometry(12, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 }));
-        group.add(dot);
+    hotspotGroup.clear();
+    currentScene.hotspots.forEach((hotspot) => {
+      const group = new THREE.Group();
+      group.userData = { target: hotspot.target };
+      group.position.copy(new THREE.Vector3(...hotspot.position).normalize().multiplyScalar(450));
+      const dot = new THREE.Mesh(
+        new THREE.SphereGeometry(11, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 }),
+      );
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(15, 25, 32),
+        new THREE.MeshBasicMaterial({ color: 0xb22222, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }),
+      );
+      ring.name = 'pulse-ring';
+      ring.lookAt(0, 0, 0);
+      group.add(dot, ring);
+      hotspotGroup.add(group);
+    });
 
-        const ring = new THREE.Mesh(new THREE.RingGeometry(15, 25, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.4 }));
-        ring.name = 'pulse-ring';
-        ring.lookAt(0, 0, 0);
-        group.add(ring);
-
-        group.position.copy(pos);
-        hotspotGroupRef.current!.add(group);
-      });
-
-      setTimeout(() => setIsChangingScene(false), 600);
-    };
-
-    loadScene();
-  }, [currentSceneKey]);
+    return () => { cancelled = true; };
+  }, [currentSceneKey, currentScene.image, currentScene.hotspots]);
 
   return (
-    <div className="fixed inset-0 w-screen h-screen bg-black overflow-hidden select-none z-[100] touch-none">
-      <audio ref={audioRef} loop src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" />
-      
-      {/* 3D Canvas Container */}
-      <div 
-        ref={mountRef} 
-        className={`w-full h-full transition-all duration-1000 ${
-          isDragging ? 'cursor-grabbing' : 'cursor-grab'
-        } ${
-          isChangingScene ? 'opacity-0 scale-105 blur-2xl' : 'opacity-100 scale-100 blur-0'
-        }`} 
-      />
+    <div className="fixed inset-0 w-screen h-screen bg-[#071b20] overflow-hidden select-none z-[100] touch-none">
+      <div ref={mountRef} className={`w-full h-full transition-opacity duration-500 ${isChangingScene ? 'opacity-30' : 'opacity-100'} ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}/>
 
-      {/* Top Left: Exit Button */}
-      {onExit && (
-        <button 
-          onClick={onExit}
-          className="absolute top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-black/30 backdrop-blur-md border border-white/20 rounded-full text-white hover:bg-sxuRed hover:border-sxuRed transition-all group animate-in slide-in-from-top-4"
-        >
-          <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-          <span className="text-xs font-serif font-bold tracking-widest">退出漫游</span>
-        </button>
+      {isChangingScene && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-white pointer-events-none">
+          <LoaderCircle className="animate-spin mb-3" size={34}/>
+          <span className="font-serif tracking-widest text-sm">正在载入全景</span>
+        </div>
+      )}
+      {loadError && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-white px-8 text-center bg-[#071b20]/90">
+          <RotateCcw size={34} className="mb-4 text-sxuRed"/>
+          <h3 className="font-serif text-xl font-bold mb-2">全景素材加载失败</h3>
+          <p className="text-sm text-white/60">请检查网络后重新进入该场景。</p>
+        </div>
       )}
 
-      {/* Top Left: Scene Info (Moved down slightly) */}
-      <div className="absolute top-24 left-6 z-40 pointer-events-none">
-         <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl px-6 py-4 shadow-2xl animate-in slide-in-from-left duration-700">
-            <div className="flex items-center gap-3">
-               <div className="w-1.5 h-6 bg-sxuRed rounded-full shadow-[0_0_10px_rgba(178,34,34,0.5)]" />
-               <h2 className="text-xl font-serif font-bold text-white tracking-widest drop-shadow-md">{currentScene.name}</h2>
-            </div>
-            <div className="flex items-center gap-2 mt-1.5 opacity-60">
-              <Info size={10} className="text-white" />
-              <p className="text-[9px] text-white uppercase tracking-[0.2em] font-sans font-bold">Centennial SXU · 360° VR</p>
-            </div>
-         </div>
+      {onExit && <button aria-label="退出全景漫游" onClick={onExit} className="absolute top-6 left-5 z-50 flex items-center gap-2 px-4 py-2.5 bg-black/35 backdrop-blur-md border border-white/20 rounded-full text-white"><ArrowLeft size={18}/><span className="text-xs font-serif font-bold">退出漫游</span></button>}
+
+      <div className="absolute top-20 left-5 z-40 pointer-events-none">
+        <div className="bg-black/35 backdrop-blur-xl border border-white/20 rounded-2xl px-5 py-3 shadow-2xl">
+          <h2 className="text-lg font-serif font-bold text-white flex items-center gap-2"><span className="w-1 h-5 bg-sxuRed rounded-full"/>{currentScene.name}</h2>
+          <p className="mt-1 text-[9px] text-white/55 tracking-[0.2em] font-bold flex items-center gap-1"><Info size={10}/> 360° DIGITAL EXHIBITION</p>
+        </div>
       </div>
 
-      {/* Top Right: Only Speaker Icon, Centered */}
-      <div className="absolute top-6 right-6 z-50">
-        <button 
-          onClick={() => { setIsMuted(!isMuted); if (isMuted) audioRef.current?.play(); else audioRef.current?.pause(); }} 
-          className="w-12 h-12 bg-black/30 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center text-white shadow-xl hover:bg-jadeBlue hover:border-jadeBlue transition-all group active:scale-90"
-        >
-           {isMuted ? <VolumeX size={20}/> : <Volume2 size={20}/>}
-        </button>
+      <div className="absolute bottom-28 inset-x-0 z-40 flex justify-center pointer-events-none px-6">
+        <div className="bg-black/30 backdrop-blur-sm text-white px-5 py-2.5 rounded-full text-[11px] font-serif flex items-center gap-2 border border-white/10"><Move size={13}/><span>拖拽旋转视角 · 点击红色热点前往下一站</span></div>
       </div>
 
-      {/* Bottom Center: Guide Tooltip */}
-      <div className="absolute bottom-12 inset-x-0 z-40 flex justify-center pointer-events-none">
-         <div className="bg-black/20 backdrop-blur-sm text-white px-6 py-3 rounded-full text-xs font-serif flex items-center gap-2 animate-pulse shadow-2xl border border-white/10">
-            <Move size={14} />
-            <span className="font-medium tracking-wider">点击切换场景，拖拽旋转视角</span>
-         </div>
+      <div className="absolute bottom-7 inset-x-0 z-50 flex gap-2 overflow-x-auto px-5 pb-1 no-scrollbar">
+        {Object.entries(SCENES).map(([key, scene]) => {
+          const isActive = key === currentSceneKey;
+          return <button key={key} onClick={() => setCurrentSceneKey(key as keyof typeof SCENES)} className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl backdrop-blur-md border ${isActive ? 'bg-sxuRed/90 border-sxuRed text-white shadow-lg' : 'bg-black/35 border-white/15 text-white/75'}`}><MapPin size={12}/><span className="text-[11px] font-bold font-serif">{scene.name}</span></button>;
+        })}
       </div>
 
-      {/* Bottom Left: Scene Switcher Navigation */}
-      <div className="absolute bottom-8 left-6 z-50 flex gap-3 animate-in slide-in-from-bottom duration-700">
-         {Object.entries(SCENES).map(([key, scene]) => {
-           const isActive = key === currentSceneKey;
-           return (
-             <button
-               key={key}
-               onClick={() => setCurrentSceneKey(key as keyof typeof SCENES)}
-               className={`flex items-center gap-2 px-4 py-2 rounded-xl backdrop-blur-md transition-all border ${
-                 isActive 
-                   ? 'bg-sxuRed/80 border-sxuRed text-white shadow-lg scale-105' 
-                   : 'bg-black/30 border-white/10 text-white/70 hover:bg-black/50 hover:text-white'
-               }`}
-             >
-                <MapPin size={12} className={isActive ? 'fill-white' : ''} />
-                <span className="text-[10px] font-bold font-serif">{scene.name}</span>
-             </button>
-           );
-         })}
-      </div>
-
-      {/* Background Overlay */}
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_40%,rgba(0,0,0,0.4)_100%)]" />
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_52%,rgba(0,0,0,0.35)_100%)]"/>
     </div>
   );
 };

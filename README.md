@@ -1,20 +1,72 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Heritage360｜AI校史讲解与沉浸式数字导览
 
-# Run and deploy your AI Studio app
+面向新生、校友和校外访客的移动端数字校史馆原型。项目将 AI 馆藏问答、资料来源引用、相关展厅推荐、360°全景漫游与体验预约串联为一条完整的参观路径。
 
-This contains everything you need to run your app locally.
+## 核心用户问题
 
-View your app in AI Studio: https://ai.studio/apps/drive/1rdKMI9uWV0FHFchS5qxozc3v1CPDCy9Q
+- 线上浏览校史资料时，不知道从哪里开始。
+- 传统分类检索难以直接回答自然语言问题。
+- 文字资料与对应展厅割裂，理解后无法继续探索。
 
-## Run Locally
+## 核心产品链路
 
-**Prerequisites:**  Node.js
+`自然语言提问 → 馆藏资料检索 → 受约束回答 → 来源卡片 → 相关全景展厅 → 体验预约/反馈`
 
+## 已实现能力
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- **AI校史讲解员**：基于结构化馆藏资料检索上下文，通过服务端 DeepSeek API 生成回答；回答展示资料来源，并推荐相关数字展厅。
+- **安全降级**：未配置 DeepSeek 或接口不可用时，自动切换到本地资料检索模式，核心演示仍可完成。
+- **360°数字展厅**：3个本地全景场景，支持拖拽、缩放、热点跳转和场景切换。
+- **馆内搜索**：按关键词筛选展厅及展品，点击结果直接进入对应场景；无结果时可转问AI讲解员。
+- **预约闭环**：日期、时段选择，确认结果、预约编号及本地记录。
+- **虚拟展品概念验证**：取得用户授权后，使用摄像头画面叠加 Three.js 模型，验证移动端展品信息展示方式。
+
+## AI设计
+
+知识库位于 `knowledge.ts`，每条资料包含标题、时期、正文、资料来源、关键词和关联展厅。服务端先检索最多4条相关资料，再把上下文传给 DeepSeek。
+
+Prompt约束：
+
+1. 只能根据检索到的馆藏资料回答。
+2. 资料不足时明确说明当前馆藏未覆盖。
+3. 控制回答长度，并给出参观建议。
+4. 前端始终展示使用的来源资料。
+
+建议验收问题：
+
+- 山西大学的办学历史从什么时候开始？
+- “中西合璧”体现了怎样的办学理念？
+- 西学专斋主要承担什么功能？
+- 第一次参观应该从哪个展厅开始？
+- 询问知识库之外的具体人物或日期，观察模型是否越界补充。
+
+## 本地运行
+
+```bash
+npm install
+npm run dev
+```
+
+未配置 API Key 时，AI讲解员自动使用本地资料检索模式。
+
+## 部署并连接 DeepSeek
+
+推荐部署至 Vercel，并在项目环境变量中配置：
+
+```text
+DEEPSEEK_API_KEY=你的密钥
+DEEPSEEK_MODEL=deepseek-v4-flash
+```
+
+API Key 只在 `/api/ask` 服务端函数中读取，不会打包进浏览器代码。不要提交 `.env` 或将密钥写入前端。
+
+## 技术栈
+
+React 19、TypeScript、Vite、Three.js、Tailwind CDN、DeepSeek Chat Completions API、Vercel Functions。
+
+## 产品边界
+
+- 当前为个人数字产品原型，不代表山西大学校史馆官方系统。
+- 活动及预约名额为产品原型的体验数据。
+- 虚拟展品模块仅用于验证相机画面与3D模型叠加交互。
+- 正式上线前需要由校史研究人员复核知识库内容和来源。

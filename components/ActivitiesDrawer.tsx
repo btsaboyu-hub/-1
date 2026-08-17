@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { X, MapPin, Calendar, ArrowRight, Activity, Clock } from 'lucide-react';
-import { ACTIVITIES, HALL_STATUSES } from '../constants';
+import { X, MapPin, Calendar, ArrowRight, Activity } from 'lucide-react';
+import { ACTIVITIES } from '../constants';
 
 interface ActivitiesDrawerProps {
   isOpen: boolean;
@@ -28,9 +28,9 @@ const ActivitiesDrawer: React.FC<ActivitiesDrawerProps> = ({ isOpen, onClose, on
           <div>
             <h2 className="text-2xl font-serif font-bold text-jadeBlue flex items-center gap-2">
               <Activity size={20} className="text-sxuRed" />
-              校史动态
+              数字活动策划
             </h2>
-            <p className="text-[10px] text-jadeBlue/50 uppercase tracking-[0.2em] mt-1 font-bold">Museum Events & Status</p>
+            <p className="text-[10px] text-jadeBlue/50 uppercase tracking-[0.2em] mt-1 font-bold">Museum Content Showcase</p>
           </div>
           <button 
             onClick={onClose}
@@ -43,71 +43,40 @@ const ActivitiesDrawer: React.FC<ActivitiesDrawerProps> = ({ isOpen, onClose, on
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto no-scrollbar py-6">
           
-          {/* Section 1: Hall Status */}
-          <div className="mb-10 pl-6">
-             <h3 className="text-sm font-bold text-inkBlack/40 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-jadeBlue" />
-                实时馆况
-             </h3>
-             <div className="flex gap-3 overflow-x-auto pr-6 no-scrollbar pb-2">
-                {HALL_STATUSES.map((status) => (
-                  <div key={status.id} className="flex-shrink-0 w-32 p-3 rounded-2xl bg-white border border-jadeBlue/5 shadow-sm">
-                    <div className="flex justify-between items-start mb-2">
-                       <span className={`w-2 h-2 rounded-full ${
-                         status.status === 'open' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 
-                         status.status === 'busy' ? 'bg-orange-500' : 'bg-gray-300'
-                       }`} />
-                       <span className="text-[10px] font-bold text-inkBlack/30 uppercase">
-                         {status.status === 'open' ? '正常' : status.status === 'busy' ? '拥挤' : '维护'}
-                       </span>
-                    </div>
-                    <h4 className="font-serif font-bold text-jadeBlue mb-1">{status.name}</h4>
-                    <div className="w-full bg-gray-100 h-1 rounded-full overflow-hidden">
-                       <div 
-                         className="h-full bg-jadeBlue/30" 
-                         style={{ width: `${status.occupancy}%` }} 
-                       />
-                    </div>
-                    <p className="text-[9px] text-right mt-1 text-jadeBlue/40">{status.occupancy}% 热度</p>
-                  </div>
-                ))}
-             </div>
-          </div>
-
-          {/* Section 2: Activities Timeline */}
+          {/* Activities Timeline */}
           <div className="px-6">
             <h3 className="text-sm font-bold text-inkBlack/40 uppercase tracking-widest mb-6 flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-sxuRed" />
-                近期活动
+                内容方案
              </h3>
              
              <div className="space-y-6 relative before:absolute before:left-[19px] before:top-2 before:bottom-0 before:w-[1px] before:bg-jadeBlue/10">
                 {ACTIVITIES.map((activity, index) => (
-                  <div key={activity.id} className={`relative pl-10 group ${activity.status === 'ended' ? 'opacity-60 grayscale-[0.8]' : ''}`}>
+                  <div key={activity.id} className={`relative pl-10 group ${activity.status === 'archive' ? 'opacity-70' : ''}`}>
                      {/* Timeline Dot */}
                      <div className={`absolute left-4 -translate-x-1/2 top-1 w-3 h-3 rounded-full border-2 border-white shadow-md z-10 ${
-                        activity.status === 'ongoing' ? 'bg-sxuRed animate-pulse' : 
-                        activity.status === 'upcoming' ? 'bg-jadeBlue' : 'bg-gray-300'
+                        activity.status === 'digital' ? 'bg-sxuRed' :
+                        activity.status === 'concept' ? 'bg-jadeBlue' : 'bg-gray-300'
                      }`} />
                      
                      {/* Card */}
                      <div 
                         onClick={() => {
-                           if (activity.linkedHallId && activity.status !== 'ended') {
+                           if (activity.linkedHallId) {
                               onNavigateToHall(activity.linkedHallId);
                               onClose();
                            }
                         }}
                         className={`bg-white/60 p-4 rounded-2xl border border-white shadow-sm transition-all ${
-                           activity.linkedHallId && activity.status !== 'ended' ? 'hover:bg-white hover:scale-[1.02] cursor-pointer hover:shadow-md' : ''
+                           activity.linkedHallId ? 'hover:bg-white hover:scale-[1.02] cursor-pointer hover:shadow-md' : ''
                         }`}
                      >
                         <div className="flex justify-between items-start mb-2">
                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
-                              activity.status === 'ongoing' ? 'bg-sxuRed/10 text-sxuRed' :
-                              activity.status === 'upcoming' ? 'bg-jadeBlue/10 text-jadeBlue' : 'bg-gray-100 text-gray-500'
+                              activity.status === 'digital' ? 'bg-sxuRed/10 text-sxuRed' :
+                              activity.status === 'concept' ? 'bg-jadeBlue/10 text-jadeBlue' : 'bg-gray-100 text-gray-500'
                            }`}>
-                              {activity.status === 'ongoing' ? '进行中' : activity.status === 'upcoming' ? '预告' : '已结束'}
+                              {activity.status === 'digital' ? '数字展览' : activity.status === 'concept' ? '概念方案' : '校史回顾'}
                            </span>
                            <span className="text-[10px] text-inkBlack/40 font-mono flex items-center gap-1">
                               <Calendar size={10} /> {activity.date}
@@ -125,9 +94,9 @@ const ActivitiesDrawer: React.FC<ActivitiesDrawerProps> = ({ isOpen, onClose, on
                               {activity.locationLabel}
                            </div>
                            
-                           {activity.linkedHallId && activity.status !== 'ended' && (
+                           {activity.linkedHallId && (
                               <button className="flex items-center gap-1 text-[10px] font-bold text-sxuRed group-hover:translate-x-1 transition-transform">
-                                 前往现场 <ArrowRight size={12} />
+                                 查看相关展厅 <ArrowRight size={12} />
                               </button>
                            )}
                         </div>

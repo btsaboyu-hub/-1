@@ -1,25 +1,59 @@
 
 import React, { useState, useEffect } from 'react';
 import { AppRoute } from './types';
-import PanoramaViewer from './components/PanoramaViewer';
-import ARExhibit from './components/ARExhibit';
 import BookingCalendar from './components/BookingCalendar';
 import HallsGrid from './components/HallsGrid';
 import GlassCard from './components/GlassCard';
 import ActivitiesDrawer from './components/ActivitiesDrawer';
+import AIGuide from './components/AIGuide';
 import { NOTIFICATIONS, SEARCH_SUGGESTIONS } from './constants';
-import { Home, Compass, Camera, Calendar, User, Bell, Search, X, Clock, MessageSquare, ShieldAlert, BookOpen, MapPin, ChevronRight, Info, ScrollText } from 'lucide-react';
+import { Home, Compass, Camera, Calendar, User, Bell, Search, X, Clock, MessageSquare, ShieldAlert, BookOpen, MapPin, ChevronRight, Info, ScrollText, Bot, Sparkles } from 'lucide-react';
+
+const PanoramaViewer = React.lazy(() => import('./components/PanoramaViewer'));
+const ARExhibit = React.lazy(() => import('./components/ARExhibit'));
+
+const FeatureLoading = () => (
+  <div className="fixed inset-0 z-[100] bg-[#071b20] text-white flex items-center justify-center font-serif tracking-widest">正在加载体验...</div>
+);
+
+const getStoredCount = (key: string) => {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(value) ? value.length : 0;
+  } catch {
+    return 0;
+  }
+};
 
 const App: React.FC = () => {
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(AppRoute.HOME);
   const [activeHall, setActiveHall] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showFeatureModal, setShowFeatureModal] = useState<'search' | 'notifications' | 'activities' | null>(null);
+  const [showFeatureModal, setShowFeatureModal] = useState<'search' | 'notifications' | 'activities' | 'ai' | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [notificationsRead, setNotificationsRead] = useState(false);
+  const [bookingCount, setBookingCount] = useState(0);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 2000);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (currentRoute === AppRoute.PROFILE) {
+      setBookingCount(getStoredCount('heritage360-bookings'));
+    }
+  }, [currentRoute]);
+
+  const handleSearchItem = (item: string) => {
+    const hallMap: Record<string, string> = {
+      '序厅': 'hall-1', '溯源厅': 'hall-2', '峥嵘厅': 'hall-2', '成果厅': 'hall-3',
+      '圣旨碑': 'hall-1', '西学专斋': 'hall-2', '百年校歌': 'hall-3',
+    };
+    setShowFeatureModal(null);
+    setSearchQuery('');
+    if (hallMap[item]) setActiveHall(hallMap[item]);
+  };
 
   const NavItem: React.FC<{ route: AppRoute; icon: React.ReactNode; label: string }> = ({ route, icon, label }) => (
     <button 
@@ -38,10 +72,12 @@ const App: React.FC = () => {
   // High Priority Render: If a Hall is active, render full screen Panorama
   if (activeHall) {
     return (
-      <PanoramaViewer 
-        initialSceneId={activeHall} 
-        onExit={() => setActiveHall(null)} 
-      />
+      <React.Suspense fallback={<FeatureLoading/>}>
+        <PanoramaViewer
+          initialSceneId={activeHall}
+          onExit={() => setActiveHall(null)}
+        />
+      </React.Suspense>
     );
   }
 
@@ -82,17 +118,19 @@ const App: React.FC = () => {
            </div>
            <div className="flex gap-3">
               <button 
+                aria-label="打开馆内搜索"
                 onClick={() => setShowFeatureModal('search')}
                 className="p-2.5 rounded-full glass-morphism border-white/20 text-inherit hover:scale-110 active:scale-95 transition-all"
               >
                 <Search size={18} />
               </button>
               <button 
+                aria-label="打开馆内通知"
                 onClick={() => setShowFeatureModal('notifications')}
                 className="p-2.5 rounded-full glass-morphism border-white/20 text-inherit hover:scale-110 active:scale-95 transition-all relative"
               >
                 <Bell size={18} />
-                <div className="absolute top-2 right-2 w-2 h-2 bg-sxuRed rounded-full border border-white" />
+                {!notificationsRead && <div className="absolute top-2 right-2 w-2 h-2 bg-sxuRed rounded-full border border-white" />}
               </button>
            </div>
         </div>
@@ -107,19 +145,24 @@ const App: React.FC = () => {
                   <h3 className="text-2xl font-serif text-jadeBlue font-bold">馆内检索</h3>
                   <p className="text-[10px] text-jadeBlue/40 font-bold uppercase tracking-widest">Search Exhibition, Artifacts, Events</p>
                 </div>
-                <button onClick={() => setShowFeatureModal(null)} className="p-2 rounded-full bg-jadeBlue/5"><X size={20}/></button>
+                <button aria-label="关闭搜索" onClick={() => { setShowFeatureModal(null); setSearchQuery(''); }} className="p-2 rounded-full bg-jadeBlue/5"><X size={20}/></button>
              </div>
              <div className="relative mb-8">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-jadeBlue/40" size={20} />
                 <input 
                   autoFocus
                   type="text" 
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="搜索展厅、展品或校史活动..." 
                   className="w-full bg-jadeBlue/5 border border-jadeBlue/10 rounded-2xl py-4 pl-12 pr-4 font-serif text-lg focus:outline-none focus:ring-2 focus:ring-jadeBlue/20 transition-all shadow-inner"
                 />
              </div>
              <div className="space-y-8 pb-12">
-                {SEARCH_SUGGESTIONS.map((section) => (
+                {SEARCH_SUGGESTIONS.map((section) => ({
+                  ...section,
+                  items: section.items.filter((item) => item.toLowerCase().includes(searchQuery.trim().toLowerCase())),
+                })).filter((section) => section.items.length > 0).map((section) => (
                   <div key={section.category}>
                     <h4 className="text-xs font-bold text-jadeBlue/60 uppercase tracking-widest mb-4 flex items-center gap-2">
                        {section.category === '展厅' && <MapPin size={14} />}
@@ -129,13 +172,20 @@ const App: React.FC = () => {
                     </h4>
                     <div className="flex flex-wrap gap-2">
                        {section.items.map((item) => (
-                         <button key={item} className="px-4 py-2 bg-white border border-jadeBlue/10 rounded-xl text-sm font-serif text-jadeBlue hover:bg-jadeBlue hover:text-white hover:border-jadeBlue transition-all shadow-sm">
+                         <button onClick={() => handleSearchItem(item)} key={item} className="px-4 py-2 bg-white border border-jadeBlue/10 rounded-xl text-sm font-serif text-jadeBlue hover:bg-jadeBlue hover:text-white hover:border-jadeBlue transition-all shadow-sm">
                            {item}
                          </button>
                        ))}
                     </div>
                   </div>
                 ))}
+               {searchQuery && !SEARCH_SUGGESTIONS.some((section) => section.items.some((item) => item.toLowerCase().includes(searchQuery.trim().toLowerCase()))) && (
+                 <div className="text-center py-10 text-jadeBlue/45">
+                   <Search className="mx-auto mb-3 opacity-40" size={28}/>
+                   <p className="font-serif">暂未找到相关馆藏</p>
+                   <button onClick={() => { setShowFeatureModal('ai'); }} className="mt-4 text-sm font-bold text-sxuRed">转问 AI 讲解员</button>
+                 </div>
+               )}
              </div>
            </div>
         </div>
@@ -180,8 +230,8 @@ const App: React.FC = () => {
              </div>
            </div>
            <div className="p-6 bg-white/80 border-t border-jadeBlue/5">
-              <button className="w-full py-4 bg-jadeBlue text-white rounded-2xl font-serif font-bold shadow-lg shadow-jadeBlue/20 active:scale-95 transition-all">
-                全部标记为已读
+              <button onClick={() => { setNotificationsRead(true); setShowFeatureModal(null); }} className="w-full py-4 bg-jadeBlue text-white rounded-2xl font-serif font-bold shadow-lg shadow-jadeBlue/20 active:scale-95 transition-all">
+                {notificationsRead ? '已全部读取' : '全部标记为已读'}
               </button>
            </div>
         </div>
@@ -192,6 +242,12 @@ const App: React.FC = () => {
          isOpen={showFeatureModal === 'activities'} 
          onClose={() => setShowFeatureModal(null)}
          onNavigateToHall={(hallId) => setActiveHall(hallId)}
+      />
+
+      <AIGuide
+        isOpen={showFeatureModal === 'ai'}
+        onClose={() => setShowFeatureModal(null)}
+        onNavigateToHall={(hallId) => { setShowFeatureModal(null); setActiveHall(hallId); }}
       />
 
       {/* 主内容区域 */}
@@ -213,11 +269,23 @@ const App: React.FC = () => {
               </div>
             </div>
 
+            <button onClick={() => setShowFeatureModal('ai')} className="w-full text-left p-5 rounded-[2rem] bg-gradient-to-br from-jadeBlue to-[#0b4350] text-white shadow-xl transition-page overflow-hidden relative group">
+              <Sparkles className="absolute -right-4 -top-4 text-white/10 group-hover:scale-110 transition-transform" size={96}/>
+              <div className="relative flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center"><Bot size={24}/></div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2"><h3 className="font-serif text-lg font-bold">问问 AI 校史讲解员</h3><span className="text-[9px] bg-harvestGreen px-2 py-0.5 rounded-full font-bold">NEW</span></div>
+                  <p className="text-xs text-white/65 mt-1">基于馆藏资料回答，并推荐相关展厅</p>
+                </div>
+                <ChevronRight size={20}/>
+              </div>
+            </button>
+
             {/* Changed Grid: 4th Item is now Activities */}
             <div className="grid grid-cols-4 gap-4 transition-page" style={{ animationDelay: '0.2s' }}>
               {[
                 { icon: <Compass size={22}/>, label: '展厅巡游', action: () => setActiveHall('hall-1') },
-                { icon: <Camera size={22}/>, label: '灵境寻古', action: () => setCurrentRoute(AppRoute.AR) },
+                { icon: <Camera size={22}/>, label: '虚拟展品', action: () => setCurrentRoute(AppRoute.AR) },
                 { icon: <Calendar size={22}/>, label: '团队预约', action: () => setCurrentRoute(AppRoute.BOOKING) },
                 { icon: <ScrollText size={22}/>, label: '校史活动', action: () => setShowFeatureModal('activities') }
               ].map((item, idx) => (
@@ -236,7 +304,7 @@ const App: React.FC = () => {
                    <span className="w-1.5 h-6 bg-sxuRed rounded-full" />
                    展厅导览
                 </h3>
-                <span className="text-[11px] font-bold text-jadeBlue/30 uppercase tracking-[0.2em]">4大核心单元</span>
+                <span className="text-[11px] font-bold text-jadeBlue/30 uppercase tracking-[0.2em]">3个数字场景</span>
               </div>
               <HallsGrid onHallSelect={(id) => setActiveHall(id)} />
             </div>
@@ -250,7 +318,7 @@ const App: React.FC = () => {
            </div>
         )}
         
-        {currentRoute === AppRoute.AR && <div className="h-full w-full absolute inset-0"><ARExhibit /></div>}
+        {currentRoute === AppRoute.AR && <div className="h-full w-full absolute inset-0"><React.Suspense fallback={<FeatureLoading/>}><ARExhibit /></React.Suspense></div>}
         {currentRoute === AppRoute.BOOKING && <div className="px-6 py-12"><BookingCalendar /></div>}
         {currentRoute === AppRoute.PROFILE && (
           <div className="px-6 py-12 transition-page">
@@ -269,9 +337,9 @@ const App: React.FC = () => {
             
             <div className="space-y-4 pb-12">
                {[
-                 { label: '预约历史', icon: <Calendar size={18}/>, value: '3次' },
-                 { label: '云游足迹', icon: <Compass size={18}/>, value: '12处' },
-                 { label: '馆藏收藏', icon: <BookOpen size={18}/>, value: '5件' },
+                 { label: '本机预约', icon: <Calendar size={18}/>, value: `${bookingCount}次` },
+                 { label: '可游场景', icon: <Compass size={18}/>, value: '3处' },
+                 { label: 'AI讲解反馈', icon: <BookOpen size={18}/>, value: `${getStoredCount('heritage360-ai-feedback')}条` },
                  { label: '系统通知', icon: <Bell size={18}/> },
                  { label: '关于校史馆', icon: <Info size={18}/> }
                ].map((item, idx) => (
@@ -298,6 +366,7 @@ const App: React.FC = () => {
            <NavItem route={AppRoute.PANORAMA} icon={<Compass size={22}/>} label="云游" />
            <div className="relative -top-12 flex flex-col items-center">
              <button 
+               aria-label="打开虚拟展品体验"
                onClick={() => setCurrentRoute(AppRoute.AR)}
                className={`w-18 h-18 rounded-full flex items-center justify-center shadow-2xl border-4 border-white transition-all ${
                  currentRoute === AppRoute.AR ? 'bg-jadeBlue text-white scale-110' : 'bg-sxuRed text-white hover:bg-sxuRed/90'
@@ -306,7 +375,7 @@ const App: React.FC = () => {
              >
                 <Camera size={32} />
              </button>
-             <span className={`text-[11px] font-bold mt-2 font-serif ${currentRoute === AppRoute.AR ? 'text-jadeBlue' : 'text-jadeBlue/60'}`}>灵境</span>
+             <span className={`text-[11px] font-bold mt-2 font-serif ${currentRoute === AppRoute.AR ? 'text-jadeBlue' : 'text-jadeBlue/60'}`}>展品</span>
            </div>
            <NavItem route={AppRoute.BOOKING} icon={<Calendar size={22}/>} label="预约" />
            <NavItem route={AppRoute.PROFILE} icon={<User size={22}/>} label="我的" />

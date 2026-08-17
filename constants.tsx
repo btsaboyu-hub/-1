@@ -1,5 +1,5 @@
 
-import { Scene, ExhibitionHall, BookingSlot, MuseumEvent, MuseumActivity, HallStatus } from './types';
+import { Scene, ExhibitionHall, BookingSlot, MuseumEvent, MuseumActivity } from './types';
 
 export const MUSEUM_SCENES: Record<string, Scene[]> = {
   '1F': [
@@ -105,36 +105,36 @@ export const EVENTS: MuseumEvent[] = [
     id: 'e1',
     title: '百年校史珍品展',
     image: 'https://images.unsplash.com/photo-1554941068-a252680d25d9?q=80&w=800&auto=format&fit=crop',
-    date: '2024-05-15 至 2024-06-15',
+    date: '常设数字展览',
     category: '特展',
     price: '免费预约'
   },
   {
     id: 'e2',
-    title: '西学专斋落成120周年讲座',
+    title: '西学专斋专题讲座',
     image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=800&auto=format&fit=crop',
-    date: '2024-05-22 14:00',
+    date: '排期以馆方公告为准',
     category: '讲座',
-    price: '限额50人'
+    price: '活动信息示意'
   },
   {
     id: 'e3',
-    title: '校友回馈：校园古建摄影赛',
+    title: '校园古建影像征集',
     image: 'https://images.unsplash.com/photo-1516245834210-c4c142787335?q=80&w=800&auto=format&fit=crop',
-    date: '进行中',
+    date: '活动信息示意',
     category: '竞赛',
-    price: '参与有礼'
+    price: '以馆方公告为准'
   }
 ];
 
 export const NOTIFICATIONS = [
-  { id: 1, type: '预约', title: '预约成功提醒', content: '您预约的2024-05-20 上午场次已审核通过。', time: '10分钟前' },
-  { id: 2, type: '活动', title: '新活动上线', content: '《百年校史珍品展》即将开启，欢迎点击详情预约。', time: '2小时前' }
+  { id: 1, type: '预约', title: '体验预约说明', content: '当前版本为数字产品原型，预约记录仅保存在本机。', time: '刚刚' },
+  { id: 2, type: '活动', title: 'AI校史讲解员上线', content: '现在可以基于馆藏资料提问，并跳转至相关数字展厅。', time: '刚刚' }
 ];
 
 export const SEARCH_SUGGESTIONS = [
   { category: '展厅', items: ['序厅', '溯源厅', '峥嵘厅', '成果厅'] },
-  { category: '展物', items: ['圣旨碑', '西学专斋', '百年校歌'] }
+  { category: '展品', items: ['圣旨碑', '西学专斋', '百年校歌'] }
 ];
 
 // --- New Data ---
@@ -143,35 +143,28 @@ export const ACTIVITIES: MuseumActivity[] = [
   {
     id: 'a1',
     title: '“晋商与山大”特展',
-    date: '进行中 · 截止 06.30',
-    status: 'ongoing',
+    date: '数字展览',
+    status: 'digital',
     description: '探索晋商文化如何资助并影响山西大学堂的早期建设，展出珍贵账本与书信。',
     locationLabel: '中厅展区',
     linkedHallId: 'hall-2'
   },
   {
     id: 'a2',
-    title: '夜游校史馆：灯光秀',
-    date: '本周六 19:30',
-    status: 'upcoming',
-    description: '首次开放夜间全景游览，配合数字光影技术重现西学专斋旧景。',
+    title: '夜游校史馆：光影概念方案',
+    date: '产品概念',
+    status: 'concept',
+    description: '以数字光影和全景游览重现西学专斋旧景的产品概念。',
     locationLabel: '校史馆入口',
     linkedHallId: 'hall-1'
   },
   {
     id: 'a3',
     title: '1977届校友返校纪念活动',
-    date: '2024.04.20',
-    status: 'ended',
+    date: '校史回顾',
+    status: 'archive',
     description: '恢复高考后的第一届学子重返母校，捐赠当年课堂笔记与生活用品。',
     locationLabel: '内厅珍藏',
     linkedHallId: 'hall-3'
   }
-];
-
-export const HALL_STATUSES: HallStatus[] = [
-  { id: '1', name: '溯源厅', status: 'open', occupancy: 45 },
-  { id: '2', name: '峥嵘厅', status: 'busy', occupancy: 80 },
-  { id: '3', name: '华章厅', status: 'maintenance', occupancy: 0 },
-  { id: '4', name: '未来厅', status: 'open', occupancy: 10 },
 ];
